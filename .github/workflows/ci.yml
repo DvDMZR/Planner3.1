@@ -34,3 +34,13 @@ jobs:
             echo "::error::app/dist ist nicht aktuell. Bitte 'npm run build:jsx' ausführen und app/dist mit-committen."
             exit 1
           fi
+
+      - name: Build CSS
+        run: npm run build:css
+
+      - name: Verify app/tailwind.css is in sync with sources
+        run: |
+          if ! git diff --exit-code -- app/tailwind.css; then
+            echo "::error::app/tailwind.css ist nicht aktuell. Bitte 'npm run build:css' ausführen und mit-committen."
+            exit 1
+          fi

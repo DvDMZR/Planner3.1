@@ -68,6 +68,10 @@ function App() {
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [pastProjectsExpanded, setPastProjectsExpanded] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  // E-Mail-Export-Modus: 'detailed' = alle Einzelposten, 'summary' = nur
+  // Kategorien-Summen. Lebt im App-State, weil InvoiceModal inline definiert
+  // ist und bei jedem Render neu mountet (lokaler State ginge verloren).
+  const [invoiceEmailMode, setInvoiceEmailMode] = useState('detailed');
   const [invoiceSelection, setInvoiceSelection] = useState({
     emps: {},
     costs: {}
@@ -174,6 +178,11 @@ function App() {
   });
   const [lastBackupAt, setLastBackupAt] = useState(null); // ISO string, never persisted
   const [emailTemplate, setEmailTemplate] = useState(DEFAULT_EMAIL_TEMPLATE);
+  // Spesen-Import: gelernte Namens-Aliase ({ normalisierterName: empId })
+  // und zuletzt verwendete EUR-Umrechnungskurse ({ PLN: 0.23, … }).
+  // Beide werden in settings.json persistiert.
+  const [empAliases, setEmpAliases] = useState({});
+  const [fxRates, setFxRates] = useState(null);
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       return validateRestoredSession(JSON.parse(sessionStorage.getItem('plannerSession')));
@@ -627,6 +636,8 @@ function App() {
           ...prev,
           ...parsedData.emailTemplate
         }));
+        if (parsedData.empAliases) setEmpAliases(parsedData.empAliases);
+        if (parsedData.fxRates) setFxRates(parsedData.fxRates);
         // Migrate plaintext PINs to hashes and seed admin if missing.
         // Async; result triggers a re-render and the normal save cycle
         // will persist the hashed records.
@@ -893,7 +904,9 @@ function App() {
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       autoBackup,
-      emailTemplate
+      emailTemplate,
+      empAliases,
+      fxRates
     };
     // Remote stores (SharePoint, local FS) carry the full user records
     // including PIN hashes so accounts survive a page reload. The localStorage
@@ -1033,7 +1046,7 @@ function App() {
         }
       }, 1500);
     }
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates]);
 
   // Show the generated initial admin PIN once as a persistent toast so the
   // operator can note it down and change it immediately after first login.
@@ -1138,6 +1151,8 @@ function App() {
       inactiveTrainingTasks,
       customTrainingTasks,
       invoiceRecipient,
+      empAliases,
+      fxRates,
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       backupReason: reason,
@@ -1221,7 +1236,7 @@ function App() {
       ok: false,
       error: 'Kein Backup-Ziel verfügbar (weder SharePoint noch lokaler Ordner verbunden).'
     };
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates]);
 
   // Mirror runBackup into a ref so loginUser (which has no deps) can call
   // it with the latest closure.
@@ -1296,9 +1311,11 @@ function App() {
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       autoBackup,
-      emailTemplate
+      emailTemplate,
+      empAliases,
+      fxRates
     };
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates]);
 
   // Flush pending local save before the page unloads so a fast tab close
   // doesn't drop the most recent edits.
@@ -1354,6 +1371,14 @@ function App() {
     if (data.emailTemplate) setEmailTemplate(prev => ({
       ...prev,
       ...data.emailTemplate
+    }));
+    if (data.empAliases) setEmpAliases(prev => ({
+      ...prev,
+      ...data.empAliases
+    }));
+    if (data.fxRates) setFxRates(prev => ({
+      ...(prev || {}),
+      ...data.fxRates
     }));
     // Skip updating users if the incoming snapshot is a stripped localStorage
     // copy (no PIN data present). PIN hashes are intentionally omitted from
@@ -2256,6 +2281,8 @@ function App() {
       inactiveTrainingTasks,
       customTrainingTasks,
       invoiceRecipient,
+      empAliases,
+      fxRates,
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       exportedAt: new Date().toISOString(),
@@ -2269,7 +2296,7 @@ function App() {
     a.href = url;
     a.download = `Einsatzplanung3.0_Backup_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates]);
   const importData = useCallback(e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -2308,6 +2335,8 @@ function App() {
         if (parsed.inactiveTrainingTasks) setInactiveTrainingTasks(parsed.inactiveTrainingTasks);
         if (parsed.customTrainingTasks) setCustomTrainingTasks(parsed.customTrainingTasks);
         if (parsed.invoiceRecipient !== undefined) setInvoiceRecipient(parsed.invoiceRecipient);
+        if (parsed.empAliases) setEmpAliases(parsed.empAliases);
+        if (parsed.fxRates) setFxRates(parsed.fxRates);
         if (parsed.auditLog) setAuditLog(parsed.auditLog);
         // appUsers is deliberately NOT imported: a backup can otherwise
         // inject attacker-controlled pinHash/pinSalt records. Local user
@@ -2500,6 +2529,7 @@ function App() {
     }
     lines.push(`Datum:         ${new Date().toLocaleDateString('de-DE')}`);
     lines.push('');
+    const summaryMode = invoiceEmailMode === 'summary';
 
     // Labor
     const includedLabor = laborLines.filter(l => l.included);
@@ -2509,7 +2539,7 @@ function App() {
       lines.push(sep);
       let laborTotal = 0;
       includedLabor.forEach(l => {
-        lines.push(`  ${l.emp?.name || 'Unbekannt'}: ${l.hours} Std. x ${l.rate} EUR/h = ${fmt2(l.cost)} EUR`);
+        if (!summaryMode) lines.push(`  ${l.emp?.name || 'Unbekannt'}: ${l.hours} Std. x ${l.rate} EUR/h = ${fmt2(l.cost)} EUR`);
         laborTotal += l.cost;
       });
       lines.push(`  Summe: ${fmt2(laborTotal)} EUR`);
@@ -2523,26 +2553,34 @@ function App() {
       lines.push('ZUSATZKOSTEN');
       lines.push(sep);
       let costsTotal = 0;
+      // Zusammengefasst: nur Summen je Hauptkategorie (COST_LINE_TYPES)
+      const sumsByType = {};
       includedCosts.forEach(({
         ci,
         emp
       }) => {
         (ci.lines || []).forEach(l => {
           const cfg = COST_LINE_TYPES[l.type] || COST_LINE_TYPES.other;
+          const amt = l.type === 'hours' ? (l.hours || 0) * (l.hourlyRate || 0) : l.amount || 0;
+          costsTotal += amt;
+          sumsByType[l.type] = (sumsByType[l.type] || 0) + amt;
+          if (summaryMode) return;
           const desc = [ci.description, l.comment].filter(Boolean).join(' - ');
           const detail = desc ? ` (${desc})` : '';
           if (l.type === 'hours') {
-            const hrs = l.hours || 0,
-              rate = l.hourlyRate || 0;
-            lines.push(`  ${emp?.name || 'Unbekannt'} - ${cfg.invoiceLabel}${detail}: ${hrs} Std. x ${rate} EUR/h = ${fmt2(hrs * rate)} EUR`);
-            costsTotal += hrs * rate;
+            lines.push(`  ${emp?.name || 'Unbekannt'} - ${cfg.invoiceLabel}${detail}: ${l.hours || 0} Std. x ${l.hourlyRate || 0} EUR/h = ${fmt2(amt)} EUR`);
           } else {
-            const amt = l.amount || 0;
             lines.push(`  ${emp?.name || 'Unbekannt'} - ${cfg.invoiceLabel}${detail}: ${fmt2(amt)} EUR`);
-            costsTotal += amt;
           }
         });
       });
+      if (summaryMode) {
+        COST_LINE_TYPE_ORDER.forEach(type => {
+          if (sumsByType[type] > 0) {
+            lines.push(`  ${COST_LINE_TYPES[type].invoiceLabel}: ${fmt2(sumsByType[type])} EUR`);
+          }
+        });
+      }
       lines.push(`  Summe: ${fmt2(costsTotal)} EUR`);
       lines.push('');
     }
@@ -2974,7 +3012,21 @@ function App() {
       })));
     }), costLines.length === 0 && /*#__PURE__*/React.createElement("p", {
       className: "text-sm text-slate-400"
-    }, t('invoice.noCosts'))))), /*#__PURE__*/React.createElement("div", {
+    }, t('invoice.noCosts'))))), invoiceRecipient && /*#__PURE__*/React.createElement("div", {
+      className: "px-6 py-3 bg-white border-t border-slate-100 flex items-center gap-3 flex-wrap"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-500 font-medium uppercase tracking-wide"
+    }, t('invoice.emailMode')), /*#__PURE__*/React.createElement("div", {
+      className: "flex rounded-lg border border-slate-300 overflow-hidden"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setInvoiceEmailMode('summary'),
+      className: `px-3 py-1.5 text-xs font-medium transition-colors ${invoiceEmailMode === 'summary' ? 'bg-gea-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`
+    }, t('invoice.modeSummary')), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setInvoiceEmailMode('detailed'),
+      className: `px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-300 ${invoiceEmailMode === 'detailed' ? 'bg-gea-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`
+    }, t('invoice.modeDetailed'))), /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-400"
+    }, invoiceEmailMode === 'summary' ? t('invoice.modeSummaryHint') : t('invoice.modeDetailedHint'))), /*#__PURE__*/React.createElement("div", {
       className: "p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center"
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
       className: "text-sm text-slate-500"
@@ -3124,7 +3176,9 @@ function App() {
     isLoginModalOpen,
     autoBackup,
     lastBackupAt,
-    emailTemplate
+    emailTemplate,
+    empAliases,
+    fxRates
   };
   const h = useMemo(() => ({
     setActiveTab,
@@ -3186,6 +3240,8 @@ function App() {
     setAutoBackup,
     runBackup,
     setEmailTemplate,
+    setEmpAliases,
+    setFxRates,
     showToast,
     dismissToast,
     requestConfirm,

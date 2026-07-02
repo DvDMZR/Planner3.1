@@ -107,10 +107,12 @@ function buildSplitFiles(state) {
     //   - inactive.json:      all inactive-* lists (most-edited)
     const autoBackup = state.autoBackup || {};
     const emailTemplate = state.emailTemplate || null;
+    const empAliases = state.empAliases || {};
+    const fxRates = state.fxRates || null;
     const files = {
         'employees.json':     { employees },
         'projects.json':      { projects },
-        'settings.json':      { invoiceRecipient, autoBackup, emailTemplate },
+        'settings.json':      { invoiceRecipient, autoBackup, emailTemplate, empAliases, fxRates },
         'category-defs.json': { empCategories, projCategories, projTypes },
         'tasks.json':         { basicTasks, basicTasksMeta, offtimeTasks, customTrainingTasks },
         'inactive.json':      { inactiveBasicTasks, inactiveOfftimeTasks,
@@ -170,6 +172,8 @@ function mergeSplitFiles({ employees, projects, settings,
         invoiceRecipient:     settings?.invoiceRecipient     || '',
         autoBackup:           settings?.autoBackup           || null,
         emailTemplate:        settings?.emailTemplate        || null,
+        empAliases:           settings?.empAliases           || {},
+        fxRates:              settings?.fxRates              || null,
         appUsers:             usr.appUsers             || [],
         auditLog:             aud.auditLog             || []
     };

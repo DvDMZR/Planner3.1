@@ -401,7 +401,7 @@ const ALLOWED_IMPORT_KEYS = new Set([
     'basicTasks', 'basicTasksMeta', 'inactiveBasicTasks',
     'offtimeTasks', 'inactiveOfftimeTasks',
     'inactiveSupportTasks', 'inactiveTrainingTasks', 'customTrainingTasks',
-    'invoiceRecipient', 'auditLog',
+    'invoiceRecipient', 'auditLog', 'empAliases', 'fxRates',
     'schemaVersion', 'exportedAt', 'backupReason', 'backupAt',
 ]);
 const validateImportedState = (parsed) => {
@@ -436,9 +436,11 @@ const validateImportedState = (parsed) => {
     cap('assignments', 50000);
     cap('costItems', 20000);
     cap('auditLog', 500);
-    // basicTasksMeta is a plain object map.
-    if (out.basicTasksMeta !== undefined && (typeof out.basicTasksMeta !== 'object' || Array.isArray(out.basicTasksMeta))) {
-        delete out.basicTasksMeta;
+    // basicTasksMeta, empAliases and fxRates are plain object maps.
+    for (const f of ['basicTasksMeta', 'empAliases', 'fxRates']) {
+        if (out[f] !== undefined && (typeof out[f] !== 'object' || out[f] === null || Array.isArray(out[f]))) {
+            delete out[f];
+        }
     }
     if (out.invoiceRecipient !== undefined && typeof out.invoiceRecipient !== 'string') {
         delete out.invoiceRecipient;

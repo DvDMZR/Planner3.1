@@ -67,6 +67,8 @@ const sampleState = () => ({
     inactiveBasicTasks: [], offtimeTasks: ['Urlaub'], inactiveOfftimeTasks: [],
     inactiveSupportTasks: [], inactiveTrainingTasks: [], customTrainingTasks: [],
     invoiceRecipient: 'buchhaltung@example.com',
+    empAliases: { 'jakub mechlinski': 'e1' },
+    fxRates: { PLN: 0.23 },
     appUsers: [{ id: 'admin', role: 'admin', pinHash: 'h', pinSalt: 's', pinAlgo: 'pbkdf2-100k' }],
     auditLog: [{ id: 'log1', timestamp: '2026-01-01' }],
     autoBackup: { intervalMin: 60 },
@@ -115,6 +117,9 @@ test('buildSplitFiles → mergeSplitFiles: verlustfreier Roundtrip', () => {
     assert.deepEqual(merged.appUsers, state.appUsers);
     assert.deepEqual(merged.auditLog, state.auditLog);
     assert.equal(merged.invoiceRecipient, state.invoiceRecipient);
+    // Spesen-Import-Felder überleben den Roundtrip (settings.json)
+    assert.deepEqual(merged.empAliases, state.empAliases);
+    assert.deepEqual(merged.fxRates, state.fxRates);
 });
 
 test('mergeSplitFiles: Fallback-Kaskade auf legacy categories.json', () => {
