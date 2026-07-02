@@ -250,25 +250,6 @@ async function spLoad(ctx) {
     }
 }
 
-async function spGetTimestamp(ctx) {
-    const r = await spFetch(`${ctx.siteUrl}/_api/web/GetFileByServerRelativeUrl('${SP_ENC(ctx.stateFilePath)}')?$select=TimeLastModified`, {
-        headers: { 'Accept': 'application/json;odata=verbose' }
-    });
-    if (r.status === 404) return null;
-    if (!r.ok) throw new Error('ts ' + r.status);
-    return (await r.json()).d.TimeLastModified;
-}
-
-async function spSave(ctx, data) {
-    const digest = await spGetDigest(ctx.siteUrl);
-    const r = await spFetch(`${ctx.siteUrl}/_api/web/GetFolderByServerRelativeUrl('${SP_ENC(ctx.folderPath)}')/Files/Add(url='planner-state.json',overwrite=true)`, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json;odata=verbose', 'X-RequestDigest': digest, 'Content-Type': 'application/octet-stream' },
-        body: JSON.stringify(data)
-    });
-    if (!r.ok) throw new Error('save ' + r.status);
-}
-
 // Ensure a subfolder exists under the planner folder. 400 = already present,
 // which SharePoint returns on the second call – we swallow that. Auth errors
 // still need to bubble up so the recovery layer can react.

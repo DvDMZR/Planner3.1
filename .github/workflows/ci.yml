@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-build-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      # app/dist/ wird committet und zur Laufzeit geladen. Dieser Check stellt
+      # sicher, dass niemand .jsx-Quellen ändert, ohne den Build neu zu
+      # erzeugen – sonst liefert die App stillschweigend alten Code aus.
+      - name: Build JSX
+        run: npm run build:jsx
+
+      - name: Verify app/dist is in sync with sources
+        run: |
+          if ! git diff --exit-code -- app/dist; then
+            echo "::error::app/dist ist nicht aktuell. Bitte 'npm run build:jsx' ausführen und app/dist mit-committen."
+            exit 1
+          fi
+
+      - name: Build CSS
+        run: npm run build:css
+
+      - name: Verify app/tailwind.css is in sync with sources
+        run: |
+          if ! git diff --exit-code -- app/tailwind.css; then
+            echo "::error::app/tailwind.css ist nicht aktuell. Bitte 'npm run build:css' ausführen und mit-committen."
+            exit 1
+          fi

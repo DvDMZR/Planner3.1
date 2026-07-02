@@ -16,6 +16,7 @@ const ProjectDetailsView = ({ s, h }) => {
         activeEmployees, activeEmpsByCategory, activeEmpCategories,
         projectsByCategory, projCategoriesFromProjects, timelineWeeks,
         currentWeekColRef, resourceScrollRef, timelineScrollRef,
+        empAliases, fxRates,
         language, t } = s;
     const { setActiveTab, setEmployees, setProjects, setAssignments,
         setCostItems, setEmpCategories, setProjCategories, setBasicTasks,
@@ -35,7 +36,9 @@ const ProjectDetailsView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
-        scrollToCurrentWeek, showToast } = h;
+        scrollToCurrentWeek, showToast,
+        setEmpAliases, setFxRates } = h;
+        const [isExpenseImportOpen, setIsExpenseImportOpen] = React.useState(false);
         const proj = projectById.get(selectedProjectDetails);
         const projId = proj?.id;
 
@@ -122,6 +125,10 @@ const ProjectDetailsView = ({ s, h }) => {
                         </button>
                         <button onClick={openInvoiceModal} className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors">
                             <IconFileText size={15}/> {t('projDetail.invoice')}
+                        </button>
+                        <button onClick={() => setIsExpenseImportOpen(true)}
+                            className="bg-white border border-slate-300 hover:bg-gea-50 hover:border-gea-400 text-slate-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors">
+                            <IconFileText size={15}/> {t('expense.importBtn')}
                         </button>
                         <button onClick={() => { setEditingCostItem(null); setIsCostItemModalOpen(true); }}
                             className="bg-gea-600 hover:bg-gea-700 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors">
@@ -320,6 +327,23 @@ const ProjectDetailsView = ({ s, h }) => {
                     </div>
                 </div>
 
+                {isExpenseImportOpen && (
+                    <ExpenseImportModal
+                        proj={proj}
+                        employees={employees}
+                        assignments={assignments}
+                        costItems={costItems}
+                        setCostItems={setCostItems}
+                        handleSaveAssignment={handleSaveAssignment}
+                        empAliases={empAliases}
+                        setEmpAliases={setEmpAliases}
+                        fxRates={fxRates}
+                        setFxRates={setFxRates}
+                        showToast={showToast}
+                        onClose={() => setIsExpenseImportOpen(false)}
+                        t={t}
+                    />
+                )}
                 {isCostItemModalOpen && (
                     <CostItemModal
                         projectId={proj.id}

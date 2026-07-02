@@ -68,6 +68,8 @@ const ProjectDetailsView = ({
     currentWeekColRef,
     resourceScrollRef,
     timelineScrollRef,
+    empAliases,
+    fxRates,
     language,
     t
   } = s;
@@ -135,8 +137,11 @@ const ProjectDetailsView = ({
     buildInvoiceData,
     openInvoiceModal,
     scrollToCurrentWeek,
-    showToast
+    showToast,
+    setEmpAliases,
+    setFxRates
   } = h;
+  const [isExpenseImportOpen, setIsExpenseImportOpen] = React.useState(false);
   const proj = projectById.get(selectedProjectDetails);
   const projId = proj?.id;
   const projAssignments = React.useMemo(() => (assignmentsByProject.get(projId) || []).filter(a => a.type === 'project'), [assignmentsByProject, projId]);
@@ -271,6 +276,11 @@ const ProjectDetailsView = ({
   }, /*#__PURE__*/React.createElement(IconFileText, {
     size: 15
   }), " ", t('projDetail.invoice')), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setIsExpenseImportOpen(true),
+    className: "bg-white border border-slate-300 hover:bg-gea-50 hover:border-gea-400 text-slate-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors"
+  }, /*#__PURE__*/React.createElement(IconFileText, {
+    size: 15
+  }), " ", t('expense.importBtn')), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setEditingCostItem(null);
       setIsCostItemModalOpen(true);
@@ -509,7 +519,21 @@ const ProjectDetailsView = ({
     className: "w-20 p-1.5 border border-slate-300 rounded text-sm text-center font-medium"
   }), /*#__PURE__*/React.createElement("span", {
     className: "text-sm text-slate-400"
-  }, "\u20AC/h"))))), isCostItemModalOpen && /*#__PURE__*/React.createElement(CostItemModal, {
+  }, "\u20AC/h"))))), isExpenseImportOpen && /*#__PURE__*/React.createElement(ExpenseImportModal, {
+    proj: proj,
+    employees: employees,
+    assignments: assignments,
+    costItems: costItems,
+    setCostItems: setCostItems,
+    handleSaveAssignment: handleSaveAssignment,
+    empAliases: empAliases,
+    setEmpAliases: setEmpAliases,
+    fxRates: fxRates,
+    setFxRates: setFxRates,
+    showToast: showToast,
+    onClose: () => setIsExpenseImportOpen(false),
+    t: t
+  }), isCostItemModalOpen && /*#__PURE__*/React.createElement(CostItemModal, {
     projectId: proj.id,
     existingItem: editingCostItem,
     assignments: assignments,

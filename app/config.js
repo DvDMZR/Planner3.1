@@ -75,17 +75,6 @@ const ensureAdmin = async (users) => {
     return { users: [admin, ...filtered], initialPin: generatedPin };
 };
 
-// Legacy / compatibility – older callers use injectAdmin synchronously.
-// Returns the list unchanged if an admin is present; otherwise prepends a
-// non-hashed placeholder that triggers re-seeding on the next save cycle.
-// Filters out any existing _needsSeed placeholders to avoid duplicates.
-const injectAdmin = (users) => {
-    const list = users || [];
-    if (list.some(u => u.role === 'admin' && !u._needsSeed)) return list;
-    const filtered = list.filter(u => !u._needsSeed);
-    return [{ ...ADMIN_SEED, _needsSeed: true }, ...filtered];
-};
-
 // --- CHANGELOG ---
 const CHANGELOG_CONTENT = `# Changelog
 
@@ -689,10 +678,11 @@ const STATUS_ORDER = { active: 0, missing_costs: 1, planned: 2, completed: 3, co
 const COST_LINE_TYPES = {
     travel:        { label: 'Travel',        invoiceLabel: 'Reisekosten',    example: 'Flug/Auto', chip: 'bg-amber-100 text-amber-700 border-amber-200',         dot: 'bg-amber-500'   },
     accommodation: { label: 'Accommodation', invoiceLabel: 'Unterkunft',     example: 'Hotel',     chip: 'bg-indigo-100 text-indigo-700 border-indigo-200',      dot: 'bg-indigo-500'  },
+    meals:         { label: 'Meals',         invoiceLabel: 'Verpflegung',    example: 'Tagespauschale', chip: 'bg-rose-100 text-rose-700 border-rose-200',      dot: 'bg-rose-500'    },
     other:         { label: 'Other',         invoiceLabel: 'Sonstiges',      example: 'Werkzeug',  chip: 'bg-slate-100 text-slate-700 border-slate-200',         dot: 'bg-slate-400'   },
     hours:         { label: 'Hours',         invoiceLabel: 'Dienstleistung', example: '',          chip: 'bg-emerald-100 text-emerald-700 border-emerald-200',   dot: 'bg-emerald-500' },
 };
-const COST_LINE_TYPE_ORDER = ['travel', 'accommodation', 'other', 'hours'];
+const COST_LINE_TYPE_ORDER = ['travel', 'accommodation', 'meals', 'other', 'hours'];
 
 const TRAINING_TASKS = [
     'R95 Training: I&C', 'R95 Training: S&T',

@@ -8,7 +8,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Einsatzplanung 3.0 – v0.89</title>
+    <!-- Version wird zur Laufzeit aus APP_VERSION (config.js) gesetzt -->
+    <title>Einsatzplanung 3.0</title>
 
     <!-- React & ReactDOM (lokal, kein CDN) -->
     <script defer src="app/vendor/react.production.min.js"></script>
@@ -22,6 +23,7 @@
     <script defer src="app/config.js"></script>
     <script defer src="app/i18n.js"></script>
     <script defer src="app/utils.js"></script>
+    <script defer src="app/expense-parser.js"></script>
     <script defer src="app/sharepoint.js"></script>
     <script defer src="app/filesync.js"></script>
     <script defer src="app/datalayer.js"></script>
@@ -29,6 +31,7 @@
     <!-- App modules (vorkompiliert, kein Babel zur Laufzeit) -->
     <script defer src="app/dist/components.js"></script>
     <script defer src="app/dist/modals.js"></script>
+    <script defer src="app/dist/views/expense-import.js"></script>
     <script defer src="app/dist/views/project-details.js"></script>
     <script defer src="app/dist/views/sidebar.js"></script>
     <script defer src="app/dist/views/resource.js"></script>
