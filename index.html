@@ -1,0 +1,73 @@
+<!--
+  Planner-3
+  Copyright (c) 2024-2026 David Mazur
+  Alle Rechte vorbehalten. Nutzung durch GEA mit ausdrücklicher Genehmigung des Urhebers.
+-->
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Einsatzplanung 3.0 – v0.89</title>
+
+    <!-- React & ReactDOM (lokal, kein CDN) -->
+    <script defer src="app/vendor/react.production.min.js"></script>
+    <script defer src="app/vendor/react-dom.production.min.js"></script>
+
+    <!-- Tailwind CSS (pre-built) -->
+    <link rel="stylesheet" href="app/tailwind.css">
+    <link rel="stylesheet" href="app/style.css">
+
+    <!-- App modules (plain JS) -->
+    <script defer src="app/config.js"></script>
+    <script defer src="app/i18n.js"></script>
+    <script defer src="app/utils.js"></script>
+    <script defer src="app/sharepoint.js"></script>
+    <script defer src="app/filesync.js"></script>
+    <script defer src="app/datalayer.js"></script>
+
+    <!-- App modules (vorkompiliert, kein Babel zur Laufzeit) -->
+    <script defer src="app/dist/components.js"></script>
+    <script defer src="app/dist/modals.js"></script>
+    <script defer src="app/dist/views/project-details.js"></script>
+    <script defer src="app/dist/views/sidebar.js"></script>
+    <script defer src="app/dist/views/resource.js"></script>
+    <script defer src="app/dist/views/timeline.js"></script>
+    <script defer src="app/dist/views/support.js"></script>
+    <script defer src="app/dist/views/offtime.js"></script>
+    <script defer src="app/dist/views/training.js"></script>
+    <script defer src="app/dist/views/utilization.js"></script>
+    <script defer src="app/dist/views/setup-proj.js"></script>
+    <script defer src="app/dist/views/setup-emp.js"></script>
+    <script defer src="app/dist/views/overview.js"></script>
+    <script defer src="app/dist/views/setup-cats.js"></script>
+    <script defer src="app/dist/views/data.js"></script>
+    <script defer src="app/dist/views/audit.js"></script>
+    <script defer src="app/dist/app.js"></script>
+</head>
+<body>
+
+<style>
+  #root:empty::before {
+    content: '';
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #001e1e;
+  }
+  #root:empty::after {
+    content: '';
+    position: fixed;
+    top: 50%; left: 50%;
+    width: 44px; height: 44px;
+    margin: -22px 0 0 -22px;
+    border: 4px solid #004c4c;
+    border-top-color: #007A7A;
+    border-radius: 50%;
+    animation: _spin 0.8s linear infinite;
+  }
+  @keyframes _spin { to { transform: rotate(360deg); } }
+</style>
+<div id="root"></div>
+
+</body>
+</html>

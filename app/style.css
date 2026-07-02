@@ -1,0 +1,47 @@
+.diagonal-stripes {
+    background-image: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 5px, #f1f5f9 5px, #f1f5f9 10px);
+}
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #ffffff;
+}
+
+@keyframes gea-glow {
+    0%, 100% { box-shadow: 0 0 4px rgba(38, 168, 167, 0.35); }
+    50%      { box-shadow: 0 0 11px rgba(38, 168, 167, 0.75); }
+}
+.changelog-glow {
+    animation: gea-glow 2.6s ease-in-out infinite;
+}
+
+/* Cross-browser sticky-column divider.
+   border-r + box-shadow on position:sticky cells inside border-collapse
+   tables are clipped in Chromium. An ::after pseudo-element is reliable.
+   Note: do NOT set `position: relative` here — the cells already have
+   `position: sticky` (which establishes a positioning context), and
+   relative would override sticky since style.css loads after tailwind.css. */
+.sticky-col-divider::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #cbd5e1; /* slate-300 */
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* "Tentative" assignment hatch — chip color stays visible underneath
+   (background-color from Tailwind), the hatch is a translucent overlay
+   on background-image. Used for 0% blocked entries (Vorbehalt). */
+.bg-hatched {
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 0) 0,
+        rgba(0, 0, 0, 0) 4px,
+        rgba(0, 0, 0, 0.18) 4px,
+        rgba(0, 0, 0, 0.18) 7px
+    );
+}
