@@ -65,6 +65,21 @@ const SetupCatsView = ({
   const activeTrainingTasks = React.useMemo(() => TRAINING_TASKS.filter(t => !inactiveTrainingSet.has(t)), [inactiveTrainingSet]);
   const activeCustomTraining = React.useMemo(() => (customTrainingTasks || []).filter(t => !inactiveTrainingSet.has(t)), [customTrainingTasks, inactiveTrainingSet]);
   const activeOfftimeTasks = React.useMemo(() => offtimeTasks.filter(t => !inactiveOfftimeSet.has(t)), [offtimeTasks, inactiveOfftimeSet]);
+
+  // Mitarbeiter-Kategorien werden zu Team-Dateinamen auf SharePoint/FS –
+  // ungültige Zeichen würden den Sync brechen (siehe isValidTeamName).
+  const [empCatError, setEmpCatError] = useState('');
+  const addEmpCat = () => {
+    const v = newEmpCat.trim();
+    if (!v || empCategories.includes(v)) return;
+    if (!isValidTeamName(v)) {
+      setEmpCatError(t('cats.invalidTeamName'));
+      return;
+    }
+    setEmpCatError('');
+    setEmpCategories([...empCategories, v]);
+    setNewEmpCat('');
+  };
   const addOtherTask = () => {
     const t = newOtherTask.trim();
     if (!t) return;
@@ -391,22 +406,16 @@ const SetupCatsView = ({
     value: newEmpCat,
     onChange: e => setNewEmpCat(e.target.value),
     onKeyDown: e => {
-      if (e.key === 'Enter' && newEmpCat.trim() && !empCategories.includes(newEmpCat.trim())) {
-        setEmpCategories([...empCategories, newEmpCat.trim()]);
-        setNewEmpCat('');
-      }
+      if (e.key === 'Enter') addEmpCat();
     },
     placeholder: t('cats.newEmpCat'),
     className: "flex-1 p-2 border border-slate-300 rounded text-sm"
   }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      if (newEmpCat.trim() && !empCategories.includes(newEmpCat.trim())) {
-        setEmpCategories([...empCategories, newEmpCat.trim()]);
-        setNewEmpCat('');
-      }
-    },
+    onClick: addEmpCat,
     className: "bg-gea-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-gea-700"
-  }, t('btn.add'))), /*#__PURE__*/React.createElement("ul", {
+  }, t('btn.add'))), empCatError && /*#__PURE__*/React.createElement("div", {
+    className: "px-4 py-2 text-xs text-rose-600 border-b border-slate-200"
+  }, empCatError), /*#__PURE__*/React.createElement("ul", {
     className: "divide-y divide-slate-100"
   }, empCategories.map(cat => /*#__PURE__*/React.createElement("li", {
     key: cat,

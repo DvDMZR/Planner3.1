@@ -2,14 +2,16 @@
   "name": "planner-3",
   "version": "1.0.0",
   "description": "",
+  "private": true,
   "main": "index.js",
   "scripts": {
     "build:css": "tailwindcss -i app/tailwind.css.in -o app/tailwind.css --minify",
-    "build:jsx": "babel app --out-dir app/dist --extensions .jsx --presets @babel/preset-react"
+    "build:jsx": "babel app --out-dir app/dist --extensions .jsx --presets @babel/preset-react",
+    "test": "node --test tests/*.test.js"
   },
   "repository": {
     "type": "git",
-    "url": "http://local_proxy@127.0.0.1:59149/git/DvDMZR/Planner-3"
+    "url": "https://github.com/DvDMZR/Planner3.1"
   },
   "keywords": [],
   "author": "",

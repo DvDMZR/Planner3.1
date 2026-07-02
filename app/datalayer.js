@@ -436,6 +436,10 @@ async function saveSplitState(state, lastSaved, writeFile) {
         await pLimit(writeTasks, 4);
         await writeFile('meta.json', JSON.stringify({ schemaVersion: SCHEMA_VERSION, lastSaveAt: new Date().toISOString() }));
     }
+    // Anzahl tatsächlich geschriebener Dateien (ohne meta.json). Callern
+    // erlaubt das, Folgearbeit (ETag-/Timestamp-Refresh) bei No-Op-Saves
+    // komplett zu überspringen.
+    return writeTasks.length;
 }
 
 // Load only specific team assignment/cost-item files from SharePoint.

@@ -192,6 +192,17 @@ const COUNTRY_CODE_LOOKUP = (() => {
     return m;
 })();
 
+// Team-/Kategorienamen werden zu Dateinamen (assignments-<team>.json,
+// cost-items-<team>.json). Erlaubt sind daher nur Zeichen, die sowohl in
+// SharePoint-Pfaden als auch im File System Access API sicher sind –
+// insbesondere keine Pfadtrenner (/ \), Quotes, Steuerzeichen oder "..".
+// Muss mit Buchstabe/Ziffer beginnen, max. 30 Zeichen.
+const TEAM_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} &+_.\-]{0,29}$/u;
+const isValidTeamName = (name) =>
+    typeof name === 'string'
+    && TEAM_NAME_RE.test(name.trim())
+    && !name.includes('..');
+
 const resolveCountryCode = (input) => {
     if (input == null) return '/';
     const v = String(input).trim();

@@ -40,13 +40,6 @@ async function fsLoad(dirHandle) {
     }
 }
 
-async function fsSave(dirHandle, data) {
-    const fh = await dirHandle.getFileHandle('planner-state.json', { create: true });
-    const writable = await fh.createWritable();
-    await writable.write(JSON.stringify(data));
-    await writable.close();
-}
-
 // Get the planner-data subdirectory handle (create if requested).
 async function fsGetDataDir(dirHandle, create = false) {
     try {
@@ -105,7 +98,10 @@ async function fsListBackups(dirHandle) {
             out.push({ name, ts: new Date(file.lastModified).toISOString() });
         }
         return out;
-    } catch(e) { return []; }
+    } catch(e) {
+        console.warn('[FS] listBackups failed', e);
+        return [];
+    }
 }
 
 // Delete a single backup file from planner-data/backups/.
@@ -129,9 +125,17 @@ async function fsGetFolderTimestamps(dirHandle) {
             try {
                 const file = await handle.getFile();
                 map[name] = file.lastModified;
-            } catch(e) {}
+            } catch(e) {
+                // Single file unreadable (mid-write / lock) – skip it this
+                // cycle, but log so a permanently broken file is visible.
+                console.warn('[FS] getFolderTimestamps: cannot stat', name, e);
+            }
         }
-    } catch(e) {}
+    } catch(e) {
+        // Whole-folder failure would silently freeze polling ("no changes"
+        // forever). Log loudly; the caller treats {} as "nothing changed".
+        console.warn('[FS] getFolderTimestamps failed', e);
+    }
     return map;
 }
 // ─────────────────────────────────────────────────────────────────────────────

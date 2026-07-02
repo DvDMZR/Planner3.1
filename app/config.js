@@ -75,17 +75,6 @@ const ensureAdmin = async (users) => {
     return { users: [admin, ...filtered], initialPin: generatedPin };
 };
 
-// Legacy / compatibility – older callers use injectAdmin synchronously.
-// Returns the list unchanged if an admin is present; otherwise prepends a
-// non-hashed placeholder that triggers re-seeding on the next save cycle.
-// Filters out any existing _needsSeed placeholders to avoid duplicates.
-const injectAdmin = (users) => {
-    const list = users || [];
-    if (list.some(u => u.role === 'admin' && !u._needsSeed)) return list;
-    const filtered = list.filter(u => !u._needsSeed);
-    return [{ ...ADMIN_SEED, _needsSeed: true }, ...filtered];
-};
-
 // --- CHANGELOG ---
 const CHANGELOG_CONTENT = `# Changelog
 
