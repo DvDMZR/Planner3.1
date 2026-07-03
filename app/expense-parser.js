@@ -36,13 +36,17 @@ const parseGermanAmount = (str) => {
 };
 
 // "136,62 PLN" → { amount: 136.62, currency: 'PLN' }
-const AMOUNT_RE = /^(-?[\d.]+,\d{2}|-?\d+(?:\.\d{2})?)\s*([A-Z]{3})$/;
+// "276,00€" / "276,00 €" → { amount: 276, currency: 'EUR' }
+// Euro-Abrechnungen aus dem ERP nutzen das €-Symbol OHNE Leerzeichen statt
+// eines ISO-Codes – beide Schreibweisen müssen matchen.
+const CURRENCY_SYMBOLS = { '€': 'EUR', '$': 'USD', '£': 'GBP', 'zł': 'PLN', 'CHF': 'CHF' };
+const AMOUNT_RE = /^(-?[\d.]+,\d{2}|-?\d+(?:\.\d{2})?)\s*([A-Z]{3}|€|\$|£|zł)$/;
 const parseAmountWithCurrency = (str) => {
     const m = AMOUNT_RE.exec(String(str || '').trim());
     if (!m) return null;
     const amount = parseGermanAmount(m[1]);
     if (!Number.isFinite(amount)) return null;
-    return { amount, currency: m[2] };
+    return { amount, currency: CURRENCY_SYMBOLS[m[2]] || m[2] };
 };
 
 // Währungsname aus dem Kopf ("Polen, Zloty") → ISO-Code. Der verlässlichere
@@ -185,17 +189,24 @@ const parseExpenseReport = (rawText) => {
     if (itemsStart !== -1) {
         const tokens = lines.slice(itemsStart + 1)
             .filter(l => !EXPENSE_COLUMN_HEADERS.has(l.toLowerCase()));
-        // Zeilen zu Posten gruppieren, verankert am Datums-Token
+        // Zeilen zu Posten gruppieren: Ein Datums-Token startet einen Posten,
+        // der Betrags-Token beendet ihn (der Betrag ist immer das letzte Feld
+        // einer Zeile). Dadurch verschmutzt Text NACH dem letzten Posten
+        // (Trennlinien, Legenden, Fußzeilen) die letzte Zeile nicht.
         const rows = [];
         let current = null;
         for (const tok of tokens) {
             if (EXPENSE_DATE_RE.test(tok)) {
-                if (current) rows.push(current);
+                if (current) rows.push(current); // unvollständige Zeile (ohne Betrag) trotzdem melden
                 current = [tok];
             } else if (current) {
                 current.push(tok);
+                if (AMOUNT_RE.test(tok)) {
+                    rows.push(current);
+                    current = null;
+                }
             }
-            // Tokens vor dem ersten Datum (z. B. Resttext) werden ignoriert
+            // Tokens vor dem ersten Datum / nach einem Betrag werden ignoriert
         }
         if (current) rows.push(current);
 
