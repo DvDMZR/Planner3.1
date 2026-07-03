@@ -13,6 +13,7 @@ const ExpenseImportModal = ({
     setEmpAliases,
     fxRates,
     setFxRates,
+    expenseCategories,
     showToast,
     onClose,
     t = (k) => k,
@@ -39,10 +40,16 @@ const ExpenseImportModal = ({
     const activeEmployees = useMemo(
         () => (employees || []).filter(e => e.active !== false),
         [employees]);
+    // Konfigurierbare Kategorien (Verwaltung → Kategorien → Spesen-Kategorien)
+    const cats = useMemo(() => normalizeExpenseCategories(expenseCategories), [expenseCategories]);
+    const catById = useMemo(() => new Map(cats.map(c => [c.id, c])), [cats]);
+    const catChip = (cat) => (COST_LINE_TYPES[cat?.lineType] || COST_LINE_TYPES.other).chip;
+    // Merker: wurde der Mitarbeiter nur per Namensbestandteil vorgeschlagen?
+    const [suggestedEmpId, setSuggestedEmpId] = useState(null);
 
     // ── Schritt 1 → 2: Parsen ────────────────────────────────────────────────
     const handleParse = () => {
-        const result = parseExpenseReport(rawText);
+        const result = parseExpenseReport(rawText, expenseCategories);
         if (!result.ok) {
             setParseError(t(result.error === 'empty' ? 'expense.errEmpty' : 'expense.errNoHeader'));
             return;
@@ -63,9 +70,17 @@ const ExpenseImportModal = ({
                 ? String(convertToEur(it.amount, it.currency, fxRates))
                 : '',
         })));
-        // Fehlende Planungswochen standardmäßig zum Hinzufügen vormerken
+        // Mitarbeiter auflösen; ohne exakten Match ggf. Vorschlag vorbelegen
+        // (z. B. eindeutiger Nachname) – muss vom Nutzer bestätigt werden.
         const emp = findEmployeeForExpense(result.header.employeeName, employees, empAliases);
-        setAssignedEmpId(emp ? emp.id : '');
+        if (emp) {
+            setAssignedEmpId(emp.id);
+            setSuggestedEmpId(null);
+        } else {
+            const suggestion = suggestEmployeeForExpense(result.header.employeeName, activeEmployees);
+            setAssignedEmpId(suggestion ? suggestion.id : '');
+            setSuggestedEmpId(suggestion ? suggestion.id : null);
+        }
         setParsed(result);
         setStep('review');
     };
@@ -109,18 +124,18 @@ const ExpenseImportModal = ({
             c.projectId === projectId && c.expenseReportId === parsed.header.reportId) || null;
     }, [parsed, costItems, projectId]);
 
-    // Ebene 1: Summen je Hauptkategorie (nur eingeschlossene Posten, EUR)
-    const CATEGORY_ORDER = ['travel', 'accommodation', 'meals', 'other'];
+    // Ebene 1: Summen je Kategorie (nur eingeschlossene Posten, EUR)
     const sums = useMemo(() => {
-        const s = { travel: 0, accommodation: 0, meals: 0, other: 0, total: 0 };
+        const s = { total: 0 };
+        cats.forEach(c => { s[c.id] = 0; });
         rows.forEach(r => {
             if (!r.included) return;
             const v = safeNum(r.eur);
-            s[r.category] += v;
+            s[catById.has(r.category) ? r.category : 'other'] += v;
             s.total += v;
         });
         return s;
-    }, [rows]);
+    }, [rows, cats, catById]);
 
     const updateRow = (id, patch) =>
         setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
@@ -164,12 +179,18 @@ const ExpenseImportModal = ({
         });
 
         const dates = included.map(r => r.date).sort();
-        const lines = included.map(r => ({
-            id: makeId('cl'),
-            type: r.category,
-            amount: safeNum(r.eur),
-            comment: [r.type, r.vendor, r.location, fmtDate(r.date)].filter(Boolean).join(' · '),
-        }));
+        const lines = included.map(r => {
+            const cat = catById.get(r.category) || catById.get('other');
+            // Custom-Kategorien landen in ihrer Export-Kostenart (lineType);
+            // ihr Label wandert in den Kommentar, damit die Info erhalten bleibt.
+            const labelPrefix = cat.builtin ? null : cat.label;
+            return {
+                id: makeId('cl'),
+                type: cat.lineType,
+                amount: safeNum(r.eur),
+                comment: [labelPrefix, r.type, r.vendor, r.location, fmtDate(r.date)].filter(Boolean).join(' · '),
+            };
+        });
         const item = {
             id: duplicate?.id || makeId('ci'),
             projectId,
@@ -243,6 +264,19 @@ const ExpenseImportModal = ({
                             </div>
                             {!needsManualAssign ? (
                                 <div className="text-sm text-emerald-700">✓ {t('expense.matched')}: {matchedEmp.name}</div>
+                            ) : suggestedEmpId && assignedEmpId === suggestedEmpId ? (
+                                <div className="space-y-2">
+                                    <div className="text-sm text-rose-700">{t('expense.notFound')}</div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <select value={assignedEmpId} onChange={e => setAssignedEmpId(e.target.value)}
+                                            className="p-2 border border-amber-400 rounded-md text-sm bg-white">
+                                            <option value="">{t('expense.selectProfile')}</option>
+                                            {activeEmployees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                        </select>
+                                        <span className="text-xs text-amber-700 font-medium">{t('expense.suggestion')}</span>
+                                        <span className="text-xs text-slate-500">{t('expense.aliasHint')}</span>
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="space-y-2">
                                     <div className="text-sm text-rose-700">{t('expense.notFound')}</div>
@@ -297,32 +331,28 @@ const ExpenseImportModal = ({
 
                         {/* Ebene 1: Kategorie-Summen */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {CATEGORY_ORDER.map(cat => {
-                                const cfg = COST_LINE_TYPES[cat];
-                                return (
-                                    <div key={cat} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${cfg.chip}`}>{cfg.invoiceLabel}</span>
-                                        <p className="text-lg text-slate-900 font-semibold tabular-nums mt-2">{sums[cat].toFixed(2)} €</p>
-                                    </div>
-                                );
-                            })}
+                            {cats.map(cat => (
+                                <div key={cat.id} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${catChip(cat)}`}>{cat.label}</span>
+                                    <p className="text-lg text-slate-900 font-semibold tabular-nums mt-2">{(sums[cat.id] || 0).toFixed(2)} €</p>
+                                </div>
+                            ))}
                         </div>
 
                         {/* Ebene 2: Einzelposten je Kategorie (Accordion) */}
                         <div className="border border-slate-200 rounded-lg divide-y divide-slate-200 overflow-hidden">
-                            {CATEGORY_ORDER.map(cat => {
-                                const catRows = rows.filter(r => r.category === cat);
+                            {cats.map(cat => {
+                                const catRows = rows.filter(r => (catById.has(r.category) ? r.category : 'other') === cat.id);
                                 if (catRows.length === 0) return null;
-                                const cfg = COST_LINE_TYPES[cat];
-                                const open = openCats[cat] !== false; // default: offen
+                                const open = openCats[cat.id] !== false; // default: offen
                                 return (
-                                    <div key={cat}>
-                                        <button onClick={() => setOpenCats(prev => ({ ...prev, [cat]: !open }))}
+                                    <div key={cat.id}>
+                                        <button onClick={() => setOpenCats(prev => ({ ...prev, [cat.id]: !open }))}
                                             className="w-full px-4 py-2.5 bg-slate-50 flex items-center gap-2 text-left hover:bg-slate-100 transition-colors">
                                             <span className={`transition-transform text-slate-400 text-xs ${open ? 'rotate-90' : ''}`}>▶</span>
-                                            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${cfg.chip}`}>{cfg.invoiceLabel}</span>
+                                            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${catChip(cat)}`}>{cat.label}</span>
                                             <span className="text-xs text-slate-400">({catRows.length})</span>
-                                            <span className="ml-auto text-sm text-slate-700 font-medium tabular-nums">{sums[cat].toFixed(2)} €</span>
+                                            <span className="ml-auto text-sm text-slate-700 font-medium tabular-nums">{(sums[cat.id] || 0).toFixed(2)} €</span>
                                         </button>
                                         {open && catRows.map(r => (
                                             <div key={r.id} className={`px-4 py-2 flex items-center gap-3 text-sm ${r.included ? '' : 'opacity-40'}`}>

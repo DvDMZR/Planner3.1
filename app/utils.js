@@ -401,7 +401,7 @@ const ALLOWED_IMPORT_KEYS = new Set([
     'basicTasks', 'basicTasksMeta', 'inactiveBasicTasks',
     'offtimeTasks', 'inactiveOfftimeTasks',
     'inactiveSupportTasks', 'inactiveTrainingTasks', 'customTrainingTasks',
-    'invoiceRecipient', 'auditLog', 'empAliases', 'fxRates',
+    'invoiceRecipient', 'auditLog', 'empAliases', 'fxRates', 'expenseCategories',
     'schemaVersion', 'exportedAt', 'backupReason', 'backupAt',
 ]);
 const validateImportedState = (parsed) => {
@@ -427,7 +427,7 @@ const validateImportedState = (parsed) => {
         'expenses', 'empCategories', 'projCategories', 'basicTasks',
         'inactiveBasicTasks', 'offtimeTasks', 'inactiveOfftimeTasks',
         'inactiveSupportTasks', 'inactiveTrainingTasks',
-        'customTrainingTasks', 'auditLog'];
+        'customTrainingTasks', 'auditLog', 'expenseCategories'];
     for (const f of arrayFields) {
         if (out[f] !== undefined && !Array.isArray(out[f])) delete out[f];
     }

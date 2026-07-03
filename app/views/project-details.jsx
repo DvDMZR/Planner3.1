@@ -16,7 +16,7 @@ const ProjectDetailsView = ({ s, h }) => {
         activeEmployees, activeEmpsByCategory, activeEmpCategories,
         projectsByCategory, projCategoriesFromProjects, timelineWeeks,
         currentWeekColRef, resourceScrollRef, timelineScrollRef,
-        empAliases, fxRates,
+        empAliases, fxRates, expenseCategories,
         language, t } = s;
     const { setActiveTab, setEmployees, setProjects, setAssignments,
         setCostItems, setEmpCategories, setProjCategories, setBasicTasks,
@@ -339,6 +339,7 @@ const ProjectDetailsView = ({ s, h }) => {
                         setEmpAliases={setEmpAliases}
                         fxRates={fxRates}
                         setFxRates={setFxRates}
+                        expenseCategories={expenseCategories}
                         showToast={showToast}
                         onClose={() => setIsExpenseImportOpen(false)}
                         t={t}

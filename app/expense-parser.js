@@ -4,25 +4,70 @@
 // Reine Logik ohne DOM/React – wird von tests/expense-parser.test.js abgedeckt.
 // Benötigt getWeekString aus utils.js (Ladereihenfolge: utils vor diesem Modul).
 
-// Die 4 Hauptkategorien (Anforderung) gemappt auf die bestehenden
-// COST_LINE_TYPES-Schlüssel, damit Import-Posten nahtlos als Kostenpunkt-
-// Zeilen im Projekt landen (inkl. CSV-/E-Mail-Export).
-//   Reisekosten → travel, Unterkunft → accommodation,
-//   Verpflegung → meals, Sonstiges → other
-// Keyword-Matching ist case-insensitiv und substring-basiert ("Mautgebühren"
-// matcht "maut"). Reihenfolge der Regeln ist relevant: die spezifischere
-// "Tagespauschale (Unterkunft)" muss vor der generischen "Tagespauschale"
-// (→ Verpflegung) geprüft werden.
-const EXPENSE_CATEGORY_RULES = [
-    { category: 'accommodation', keywords: ['tagespauschale (unterkunft)', 'hotel', 'übernachtung', 'uebernachtung'] },
-    { category: 'meals',         keywords: ['frühstück', 'fruehstueck', 'abendessen', 'mittagessen', 'tagespauschale', 'verpflegung'] },
-    { category: 'travel',        keywords: ['flug', 'auto', 'benzin', 'zug', 'bahn', 'parkplatz', 'parken', 'maut', 'mietwagen', 'taxi', 'kraftstoff', 'tanken'] },
+// Spesen-Kategorien: konfigurierbar unter Verwaltung → Kategorien.
+// Jede Kategorie hat:
+//   id       – stabiler Schlüssel (bei Custom-Kategorien 'exp-…')
+//   label    – Anzeigename, frei umbenennbar (auch bei den eingebauten)
+//   lineType – Export-Kostenart (COST_LINE_TYPES-Schlüssel), bestimmt wie
+//              Posten im Kostenpunkt/CSV/E-Mail einsortiert werden
+//   keywords – Schlagwörter, case-insensitiv als Substring gematcht
+//              ("Mautgebühren" matcht "maut")
+//   builtin  – eingebaute Kategorien sind nicht löschbar; 'other' ist der
+//              Fallback ohne Keywords und steht immer am Ende
+// Die Reihenfolge ist die Match-Priorität: die spezifischere
+// "Tagespauschale (Unterkunft)" (→ Unterkunft) steht deshalb vor der
+// generischen "Tagespauschale" (→ Verpflegung).
+const DEFAULT_EXPENSE_CATEGORIES = [
+    { id: 'accommodation', label: 'Unterkunft',  lineType: 'accommodation', builtin: true,
+      keywords: ['tagespauschale (unterkunft)', 'hotel', 'übernachtung', 'uebernachtung'] },
+    { id: 'meals',         label: 'Verpflegung', lineType: 'meals', builtin: true,
+      keywords: ['frühstück', 'fruehstueck', 'abendessen', 'mittagessen', 'tagespauschale', 'verpflegung'] },
+    { id: 'travel',        label: 'Reisekosten', lineType: 'travel', builtin: true,
+      keywords: ['flug', 'auto', 'benzin', 'zug', 'bahn', 'parkplatz', 'parken', 'maut', 'mietwagen', 'taxi', 'kraftstoff', 'tanken'] },
+    { id: 'other',         label: 'Sonstiges',   lineType: 'other', builtin: true, keywords: [] },
 ];
 
-const categorizeExpenseType = (typeStr) => {
+// Persistierte Konfiguration (aus category-defs.json) gegen die Defaults
+// normalisieren: fehlende eingebaute Kategorien ergänzen, kaputte Einträge
+// verwerfen, lineType/builtin der Built-ins fixieren, Fallback 'other' ans
+// Ende. Liefert bei null/ungültig die Defaults (Kopie).
+const normalizeExpenseCategories = (raw) => {
+    const defaults = DEFAULT_EXPENSE_CATEGORIES.map(c => ({ ...c, keywords: [...c.keywords] }));
+    if (!Array.isArray(raw) || raw.length === 0) return defaults;
+    const byId = new Map(defaults.map(c => [c.id, c]));
+    const out = [];
+    const seen = new Set();
+    for (const entry of raw) {
+        if (!entry || typeof entry !== 'object' || typeof entry.id !== 'string' || seen.has(entry.id)) continue;
+        const base = byId.get(entry.id);
+        const keywords = (Array.isArray(entry.keywords) ? entry.keywords : [])
+            .filter(k => typeof k === 'string' && k.trim())
+            .map(k => k.trim());
+        if (base) {
+            // Built-in: Label + Keywords übernehmbar, Rest fixiert
+            out.push({ ...base,
+                label: typeof entry.label === 'string' && entry.label.trim() ? entry.label.trim() : base.label,
+                keywords: entry.keywords !== undefined ? keywords : [...base.keywords] });
+        } else {
+            const lineType = COST_LINE_TYPES[entry.lineType] && entry.lineType !== 'hours' ? entry.lineType : 'other';
+            const label = typeof entry.label === 'string' && entry.label.trim() ? entry.label.trim() : entry.id;
+            out.push({ id: entry.id, label, lineType, keywords, builtin: false });
+        }
+        seen.add(entry.id);
+    }
+    // Fehlende Built-ins ergänzen (z. B. nach Update auf neue App-Version)
+    for (const d of defaults) { if (!seen.has(d.id)) out.push(d); }
+    // Fallback 'other' immer ans Ende (matcht sonst per Keyword nichts weg)
+    out.sort((a, b) => (a.id === 'other') - (b.id === 'other'));
+    return out;
+};
+
+const categorizeExpenseType = (typeStr, categories) => {
     const s = String(typeStr || '').toLowerCase();
-    for (const rule of EXPENSE_CATEGORY_RULES) {
-        if (rule.keywords.some(k => s.includes(k))) return rule.category;
+    const cats = normalizeExpenseCategories(categories);
+    for (const cat of cats) {
+        if (cat.id === 'other') continue;
+        if (cat.keywords.some(k => s.includes(k.toLowerCase()))) return cat.id;
     }
     return 'other'; // Fallback: Sonstiges
 };
@@ -152,7 +197,7 @@ const EXPENSE_COLUMN_HEADERS = new Set([
 //   davor         = Zahlungsart, davor = Ort
 //   zweiter Token = Geschäftszweck (falls noch Tokens übrig)
 //   Rest          = Lieferant (optional)
-const parseExpenseReport = (rawText) => {
+const parseExpenseReport = (rawText, expenseCategories) => {
     const allLines = String(rawText || '').split(/\r?\n/).map(l => l.trim());
     const lines = allLines.filter(l => l.length > 0);
     if (lines.length === 0) return { ok: false, error: 'empty' };
@@ -228,7 +273,7 @@ const parseExpenseReport = (rawText) => {
                 date: dateInfo.iso,
                 week: dateInfo.week,
                 type,
-                category: categorizeExpenseType(type),
+                category: categorizeExpenseType(type, expenseCategories),
                 purpose,
                 vendor,
                 location,
@@ -279,5 +324,19 @@ const findEmployeeForExpense = (parsedName, employees, empAliases) => {
     if (byName) return byName;
     const reversed = norm.split(' ').reverse().join(' ');
     return (employees || []).find(e => normalizeEmpName(e.name) === reversed) || null;
+};
+
+// Vorschlag für die manuelle Zuordnung, wenn kein exakter Match existiert:
+// Teilt der ERP-Name genau EINEN Namensbestandteil (>2 Zeichen, z. B. den
+// Nachnamen) mit genau EINEM Mitarbeiter, wird dieser vorgeschlagen – im UI
+// vorausgewählt, aber weiterhin vom Nutzer zu bestätigen.
+const suggestEmployeeForExpense = (parsedName, employees) => {
+    const tokens = normalizeEmpName(parsedName).split(' ').filter(tk => tk.length > 2);
+    if (tokens.length === 0) return null;
+    const matches = (employees || []).filter(e => {
+        const empTokens = new Set(normalizeEmpName(e.name).split(' '));
+        return tokens.some(tk => empTokens.has(tk));
+    });
+    return matches.length === 1 ? matches[0] : null;
 };
 // ─────────────────────────────────────────────────────────────────────────────

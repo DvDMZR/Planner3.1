@@ -109,11 +109,12 @@ function buildSplitFiles(state) {
     const emailTemplate = state.emailTemplate || null;
     const empAliases = state.empAliases || {};
     const fxRates = state.fxRates || null;
+    const expenseCategories = state.expenseCategories || null;
     const files = {
         'employees.json':     { employees },
         'projects.json':      { projects },
         'settings.json':      { invoiceRecipient, autoBackup, emailTemplate, empAliases, fxRates },
-        'category-defs.json': { empCategories, projCategories, projTypes },
+        'category-defs.json': { empCategories, projCategories, projTypes, expenseCategories },
         'tasks.json':         { basicTasks, basicTasksMeta, offtimeTasks, customTrainingTasks },
         'inactive.json':      { inactiveBasicTasks, inactiveOfftimeTasks,
                                 inactiveSupportTasks, inactiveTrainingTasks },
@@ -161,6 +162,7 @@ function mergeSplitFiles({ employees, projects, settings,
         empCategories:      pick('empCategories',  categoryDefs, cat) || DEFAULT_TEAMS,
         projCategories:     pick('projCategories', categoryDefs, cat) || [],
         projTypes:          pick('projTypes',      categoryDefs, cat) || [],
+        expenseCategories:  pick('expenseCategories', categoryDefs, cat) || null,
         basicTasks:         pick('basicTasks',         tasks, cat) || [],
         basicTasksMeta:     pick('basicTasksMeta',     tasks, cat) || {},
         offtimeTasks:       pick('offtimeTasks',       tasks, cat) || [],

@@ -22,6 +22,7 @@ const SetupCatsView = ({
     newProjCat,
     newBasicTask,
     newOfftimeTask,
+    expenseCategories,
     t
   } = s;
   const {
@@ -40,7 +41,8 @@ const SetupCatsView = ({
     setNewEmpCat,
     setNewProjCat,
     setNewBasicTask,
-    setNewOfftimeTask
+    setNewOfftimeTask,
+    setExpenseCategories
   } = h;
   const [newTrainingTask, setNewTrainingTask] = useState('');
   const [newOtherTask, setNewOtherTask] = useState('');
@@ -80,6 +82,62 @@ const SetupCatsView = ({
     setEmpCategories([...empCategories, v]);
     setNewEmpCat('');
   };
+
+  // ── Spesen-Kategorien (Import-Keyword-Mapping) ──────────────────────────
+  // Es wird immer die normalisierte VOLLE Liste persistiert (inkl. Built-ins
+  // mit ggf. geänderten Labels/Keywords), damit die Match-Reihenfolge und
+  // alle Edits deterministisch aus category-defs.json reproduzierbar sind.
+  const expCats = normalizeExpenseCategories(expenseCategories);
+  const updateExpCats = mutator => setExpenseCategories(mutator(normalizeExpenseCategories(expenseCategories)));
+  const [expKeywordInputs, setExpKeywordInputs] = useState({}); // { catId: text }
+  const [expEditingId, setExpEditingId] = useState(null);
+  const [expEditLabel, setExpEditLabel] = useState('');
+  const [newExpCatLabel, setNewExpCatLabel] = useState('');
+  const [newExpCatType, setNewExpCatType] = useState('other');
+  const EXP_BUCKETS = ['travel', 'accommodation', 'meals', 'other'];
+  const addExpKeyword = catId => {
+    const kw = (expKeywordInputs[catId] || '').trim().toLowerCase();
+    if (!kw) return;
+    updateExpCats(cats => cats.map(c => c.id === catId && !c.keywords.includes(kw) ? {
+      ...c,
+      keywords: [...c.keywords, kw]
+    } : c));
+    setExpKeywordInputs(prev => ({
+      ...prev,
+      [catId]: ''
+    }));
+  };
+  const removeExpKeyword = (catId, kw) => updateExpCats(cats => cats.map(c => c.id === catId ? {
+    ...c,
+    keywords: c.keywords.filter(k => k !== kw)
+  } : c));
+  const saveExpLabel = catId => {
+    const label = expEditLabel.trim();
+    if (label) updateExpCats(cats => cats.map(c => c.id === catId ? {
+      ...c,
+      label
+    } : c));
+    setExpEditingId(null);
+  };
+  const addExpCategory = () => {
+    const label = newExpCatLabel.trim();
+    if (!label || expCats.some(c => c.label.toLowerCase() === label.toLowerCase())) return;
+    const cat = {
+      id: makeId('exp'),
+      label,
+      lineType: newExpCatType,
+      keywords: [],
+      builtin: false
+    };
+    // Vor dem Fallback 'other' einfügen, damit die Keywords greifen
+    updateExpCats(cats => [...cats.filter(c => c.id !== 'other'), cat, ...cats.filter(c => c.id === 'other')]);
+    setNewExpCatLabel('');
+  };
+  const removeExpCategory = catId => updateExpCats(cats => cats.filter(c => c.id !== catId));
+  const setExpBucket = (catId, lineType) => updateExpCats(cats => cats.map(c => c.id === catId ? {
+    ...c,
+    lineType
+  } : c));
   const addOtherTask = () => {
     const t = newOtherTask.trim();
     if (!t) return;
@@ -489,7 +547,98 @@ const SetupCatsView = ({
     size: 16
   })))), (projTypes || []).length === 0 && /*#__PURE__*/React.createElement("li", {
     className: "p-6 text-sm text-slate-400 text-center"
-  }, "Noch keine Projekttypen definiert.")))), /*#__PURE__*/React.createElement("div", {
+  }, "Noch keine Projekttypen definiert.")))), section('expenseCats', t('cats.section.expense'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "px-4 pt-3 pb-2 text-xs text-slate-500"
+  }, t('cats.expenseHint')), /*#__PURE__*/React.createElement("ul", {
+    className: "divide-y divide-slate-100"
+  }, expCats.map(cat => {
+    const cfg = COST_LINE_TYPES[cat.lineType] || COST_LINE_TYPES.other;
+    const isFallback = cat.id === 'other';
+    return /*#__PURE__*/React.createElement("li", {
+      key: cat.id,
+      className: "px-4 py-3 space-y-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: `text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${cfg.chip}`
+    }, cfg.invoiceLabel), expEditingId === cat.id ? /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: expEditLabel,
+      autoFocus: true,
+      onChange: e => setExpEditLabel(e.target.value),
+      onKeyDown: e => {
+        if (e.key === 'Enter') saveExpLabel(cat.id);
+        if (e.key === 'Escape') setExpEditingId(null);
+      },
+      onBlur: () => saveExpLabel(cat.id),
+      className: "p-1.5 border border-slate-400 rounded text-sm font-medium"
+    }) : /*#__PURE__*/React.createElement("span", {
+      className: "text-sm font-medium text-slate-800"
+    }, cat.label), isFallback && /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-400"
+    }, "(", t('cats.expenseFallback'), ")"), !cat.builtin && /*#__PURE__*/React.createElement("select", {
+      value: cat.lineType,
+      onChange: e => setExpBucket(cat.id, e.target.value),
+      title: t('cats.expenseBucket'),
+      className: "text-xs p-1 border border-slate-300 rounded bg-white text-slate-600"
+    }, EXP_BUCKETS.map(b => /*#__PURE__*/React.createElement("option", {
+      key: b,
+      value: b
+    }, t('cats.expenseBucket'), ": ", COST_LINE_TYPES[b].invoiceLabel))), /*#__PURE__*/React.createElement("div", {
+      className: "ml-auto flex items-center gap-1 shrink-0"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setExpEditingId(cat.id);
+        setExpEditLabel(cat.label);
+      },
+      className: "px-2 py-1 text-xs rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+    }, t('btn.edit')), !cat.builtin && /*#__PURE__*/React.createElement("button", {
+      onClick: () => removeExpCategory(cat.id),
+      className: "text-rose-500 hover:text-rose-700 p-1"
+    }, /*#__PURE__*/React.createElement(IconX, {
+      size: 15
+    })))), !isFallback && /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap items-center gap-1.5 pl-1"
+    }, cat.keywords.map(kw => /*#__PURE__*/React.createElement("span", {
+      key: kw,
+      className: "inline-flex items-center gap-1 text-xs bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full"
+    }, kw, /*#__PURE__*/React.createElement("button", {
+      onClick: () => removeExpKeyword(cat.id, kw),
+      className: "text-slate-400 hover:text-rose-600 leading-none"
+    }, "\xD7"))), /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: expKeywordInputs[cat.id] || '',
+      onChange: e => setExpKeywordInputs(prev => ({
+        ...prev,
+        [cat.id]: e.target.value
+      })),
+      onKeyDown: e => e.key === 'Enter' && addExpKeyword(cat.id),
+      placeholder: t('cats.expenseNewKeyword'),
+      className: "text-xs p-1.5 border border-dashed border-slate-300 rounded-full w-36 focus:border-gea-400 focus:outline-none"
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: () => addExpKeyword(cat.id),
+      className: "text-xs text-gea-600 font-medium hover:text-gea-700"
+    }, t('btn.add'))));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "p-4 border-t border-slate-200 flex gap-2 flex-wrap items-center bg-slate-50/50"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newExpCatLabel,
+    onChange: e => setNewExpCatLabel(e.target.value),
+    onKeyDown: e => e.key === 'Enter' && addExpCategory(),
+    placeholder: t('cats.expenseNewCat'),
+    className: "flex-1 min-w-40 p-2 border border-slate-300 rounded text-sm"
+  }), /*#__PURE__*/React.createElement("select", {
+    value: newExpCatType,
+    onChange: e => setNewExpCatType(e.target.value),
+    className: "p-2 border border-slate-300 rounded text-sm bg-white text-slate-600"
+  }, EXP_BUCKETS.map(b => /*#__PURE__*/React.createElement("option", {
+    key: b,
+    value: b
+  }, t('cats.expenseBucket'), ": ", COST_LINE_TYPES[b].invoiceLabel))), /*#__PURE__*/React.createElement("button", {
+    onClick: addExpCategory,
+    className: "bg-gea-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-gea-700"
+  }, t('btn.add'))))), /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setInactiveOpen(o => !o),

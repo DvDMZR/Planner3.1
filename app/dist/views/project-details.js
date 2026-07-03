@@ -70,6 +70,7 @@ const ProjectDetailsView = ({
     timelineScrollRef,
     empAliases,
     fxRates,
+    expenseCategories,
     language,
     t
   } = s;
@@ -530,6 +531,7 @@ const ProjectDetailsView = ({
     setEmpAliases: setEmpAliases,
     fxRates: fxRates,
     setFxRates: setFxRates,
+    expenseCategories: expenseCategories,
     showToast: showToast,
     onClose: () => setIsExpenseImportOpen(false),
     t: t

@@ -183,6 +183,8 @@ function App() {
   // Beide werden in settings.json persistiert.
   const [empAliases, setEmpAliases] = useState({});
   const [fxRates, setFxRates] = useState(null);
+  // Spesen-Kategorien (Labels/Keywords/eigene Kategorien); null = Defaults.
+  const [expenseCategories, setExpenseCategories] = useState(null);
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       return validateRestoredSession(JSON.parse(sessionStorage.getItem('plannerSession')));
@@ -638,6 +640,7 @@ function App() {
         }));
         if (parsedData.empAliases) setEmpAliases(parsedData.empAliases);
         if (parsedData.fxRates) setFxRates(parsedData.fxRates);
+        if (parsedData.expenseCategories) setExpenseCategories(parsedData.expenseCategories);
         // Migrate plaintext PINs to hashes and seed admin if missing.
         // Async; result triggers a re-render and the normal save cycle
         // will persist the hashed records.
@@ -906,7 +909,8 @@ function App() {
       autoBackup,
       emailTemplate,
       empAliases,
-      fxRates
+      fxRates,
+      expenseCategories
     };
     // Remote stores (SharePoint, local FS) carry the full user records
     // including PIN hashes so accounts survive a page reload. The localStorage
@@ -1046,7 +1050,7 @@ function App() {
         }
       }, 1500);
     }
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates, expenseCategories]);
 
   // Show the generated initial admin PIN once as a persistent toast so the
   // operator can note it down and change it immediately after first login.
@@ -1153,6 +1157,7 @@ function App() {
       invoiceRecipient,
       empAliases,
       fxRates,
+      expenseCategories,
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       backupReason: reason,
@@ -1236,7 +1241,7 @@ function App() {
       ok: false,
       error: 'Kein Backup-Ziel verfügbar (weder SharePoint noch lokaler Ordner verbunden).'
     };
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates, expenseCategories]);
 
   // Mirror runBackup into a ref so loginUser (which has no deps) can call
   // it with the latest closure.
@@ -1313,9 +1318,10 @@ function App() {
       autoBackup,
       emailTemplate,
       empAliases,
-      fxRates
+      fxRates,
+      expenseCategories
     };
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates, expenseCategories]);
 
   // Flush pending local save before the page unloads so a fast tab close
   // doesn't drop the most recent edits.
@@ -1380,6 +1386,7 @@ function App() {
       ...(prev || {}),
       ...data.fxRates
     }));
+    if (data.expenseCategories) setExpenseCategories(data.expenseCategories);
     // Skip updating users if the incoming snapshot is a stripped localStorage
     // copy (no PIN data present). PIN hashes are intentionally omitted from
     // localStorage to avoid persisting secrets; only SP/FS snapshots carry
@@ -2283,6 +2290,7 @@ function App() {
       invoiceRecipient,
       empAliases,
       fxRates,
+      expenseCategories,
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       exportedAt: new Date().toISOString(),
@@ -2296,7 +2304,7 @@ function App() {
     a.href = url;
     a.download = `Einsatzplanung3.0_Backup_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates, expenseCategories]);
   const importData = useCallback(e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -2337,6 +2345,7 @@ function App() {
         if (parsed.invoiceRecipient !== undefined) setInvoiceRecipient(parsed.invoiceRecipient);
         if (parsed.empAliases) setEmpAliases(parsed.empAliases);
         if (parsed.fxRates) setFxRates(parsed.fxRates);
+        if (parsed.expenseCategories) setExpenseCategories(parsed.expenseCategories);
         if (parsed.auditLog) setAuditLog(parsed.auditLog);
         // appUsers is deliberately NOT imported: a backup can otherwise
         // inject attacker-controlled pinHash/pinSalt records. Local user
@@ -3178,7 +3187,8 @@ function App() {
     lastBackupAt,
     emailTemplate,
     empAliases,
-    fxRates
+    fxRates,
+    expenseCategories
   };
   const h = useMemo(() => ({
     setActiveTab,
@@ -3242,6 +3252,7 @@ function App() {
     setEmailTemplate,
     setEmpAliases,
     setFxRates,
+    setExpenseCategories,
     showToast,
     dismissToast,
     requestConfirm,
