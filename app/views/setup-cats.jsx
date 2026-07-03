@@ -151,12 +151,30 @@ const SetupCatsView = ({ s, h }) => {
         + (inactiveSupportTasks||[]).length
         + (inactiveTrainingTasks||[]).length;
 
-    const section = (key, title, children) => (
+    // Sektion mit optionalem Eintrags-Zähler und Kurzbeschreibung – der Nutzer
+    // sieht auf einen Blick, was drinsteckt, ohne jede Sektion aufzuklappen.
+    const section = (key, title, optsOrChildren, maybeChildren) => {
+        // Flexible Signatur: section(key, title, children) ODER
+        // section(key, title, { count, hint }, children)
+        const hasOpts = maybeChildren !== undefined;
+        const { count, hint } = hasOpts ? optsOrChildren : {};
+        const children = hasOpts ? maybeChildren : optsOrChildren;
+        return sectionInner(key, title, count, hint, children);
+    };
+    const sectionInner = (key, title, count, hint, children) => (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <button onClick={() => setExpandedSetupCats(prev => ({...prev, [key]: !prev[key]}))}
-                className="w-full p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center hover:bg-slate-100 transition-colors">
-                <h2 className="text-lg text-slate-900 font-medium">{title}</h2>
-                <span className="text-slate-500">{expandedSetupCats[key] ? <IconChevronDown size={20}/> : <IconChevronRight size={20}/>}</span>
+                className="w-full p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center gap-4 hover:bg-slate-100 transition-colors text-left">
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg text-slate-900 font-medium">{title}</h2>
+                        {count != null && (
+                            <span className="bg-slate-200 text-slate-600 text-xs font-semibold px-2 py-0.5 rounded-full">{count}</span>
+                        )}
+                    </div>
+                    {hint && <p className="text-xs text-slate-400 mt-0.5 truncate">{hint}</p>}
+                </div>
+                <span className="text-slate-500 shrink-0">{expandedSetupCats[key] ? <IconChevronDown size={20}/> : <IconChevronRight size={20}/>}</span>
             </button>
             {expandedSetupCats[key] && children}
         </div>
@@ -167,7 +185,7 @@ const SetupCatsView = ({ s, h }) => {
             <div className="max-w-4xl mx-auto space-y-6">
 
                 {/* ── Basic Tasks ─────────────────────────────────────── */}
-                {section('basic', 'Basic Tasks', (
+                {section('basic', 'Basic Tasks', { count: hardcodedBasicTasks.length, hint: 'Fest eingebaute Standard-Tasks (z. B. Office) – immer aktiv.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newBasicTask}
@@ -201,7 +219,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Other Tasks (user-created) ──────────────────────── */}
-                {section('other', 'Other Tasks', (
+                {section('other', 'Other Tasks', { count: otherTasks.length, hint: 'Selbst erstellte Tasks – erscheinen in der Planung unter „Other".' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newOtherTask}
@@ -257,7 +275,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Support Tasks ───────────────────────────────────── */}
-                {section('support', 'Support', (
+                {section('support', 'Support', { count: activeSupportTasks.length, hint: 'Support-Einsatzarten (24/7, CRM) mit fester Farbkennung.' }, (
                     <ul className="divide-y divide-slate-200">
                         {activeSupportTasks.map(task => {
                             const sc = SUPPORT_CHIP_COLORS[task] || {};
@@ -281,7 +299,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Training Tasks ──────────────────────────────────── */}
-                {section('training', 'Trainings', (
+                {section('training', 'Trainings', { count: activeTrainingTasks.length + activeCustomTraining.length, hint: 'Standard- und eigene Trainings für den Planungsdialog.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newTrainingTask}
@@ -329,7 +347,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Abwesenheiten ───────────────────────────────────── */}
-                {section('offtime', t('cats.section.absences'), (
+                {section('offtime', t('cats.section.absences'), { count: activeOfftimeTasks.length, hint: 'Urlaub, Krankheit, Gleitzeit usw. – blockieren Kapazität.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newOfftimeTask}
@@ -363,7 +381,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Mitarbeiter-Kategorien ──────────────────────────── */}
-                {section('empCats', t('cats.section.empCats'), (
+                {section('empCats', t('cats.section.empCats'), { count: empCategories.length, hint: 'Teams – gruppieren Mitarbeiter in allen Planungsansichten.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newEmpCat}
@@ -392,7 +410,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Projekt-Kategorien ──────────────────────────────── */}
-                {section('projCats', t('cats.section.projCats'), (
+                {section('projCats', t('cats.section.projCats'), { count: projCategories.length, hint: 'Gruppieren Projekte in Übersicht und Verwaltung.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newProjCat}
@@ -419,7 +437,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Projekt-Typen ──────────────────────────────────── */}
-                {section('projTypes', 'Projekt-Typen', (
+                {section('projTypes', 'Projekt-Typen', { count: (projTypes||[]).length, hint: 'Anlagentyp im Projekt-Formular und im Projektlabel (z. B. MW).' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newProjType}
@@ -446,7 +464,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Spesen-Kategorien (Import) ──────────────────────── */}
-                {section('expenseCats', t('cats.section.expense'), (
+                {section('expenseCats', t('cats.section.expense'), { count: expCats.length, hint: 'Keyword-Zuordnung für den Spesen-Import – umbenenn- und erweiterbar.' }, (
                     <div>
                         <p className="px-4 pt-3 pb-2 text-xs text-slate-500">{t('cats.expenseHint')}</p>
                         <ul className="divide-y divide-slate-100">

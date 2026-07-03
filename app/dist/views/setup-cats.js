@@ -209,18 +209,40 @@ const SetupCatsView = ({
 
   // Aggregate count for all inactive items
   const totalInactive = inactiveBasicTasks.length + (inactiveOfftimeTasks || []).length + (inactiveSupportTasks || []).length + (inactiveTrainingTasks || []).length;
-  const section = (key, title, children) => /*#__PURE__*/React.createElement("div", {
+
+  // Sektion mit optionalem Eintrags-Zähler und Kurzbeschreibung – der Nutzer
+  // sieht auf einen Blick, was drinsteckt, ohne jede Sektion aufzuklappen.
+  const section = (key, title, optsOrChildren, maybeChildren) => {
+    // Flexible Signatur: section(key, title, children) ODER
+    // section(key, title, { count, hint }, children)
+    const hasOpts = maybeChildren !== undefined;
+    const {
+      count,
+      hint
+    } = hasOpts ? optsOrChildren : {};
+    const children = hasOpts ? maybeChildren : optsOrChildren;
+    return sectionInner(key, title, count, hint, children);
+  };
+  const sectionInner = (key, title, count, hint, children) => /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setExpandedSetupCats(prev => ({
       ...prev,
       [key]: !prev[key]
     })),
-    className: "w-full p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center hover:bg-slate-100 transition-colors"
+    className: "w-full p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center gap-4 hover:bg-slate-100 transition-colors text-left"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg text-slate-900 font-medium"
-  }, title), /*#__PURE__*/React.createElement("span", {
-    className: "text-slate-500"
+  }, title), count != null && /*#__PURE__*/React.createElement("span", {
+    className: "bg-slate-200 text-slate-600 text-xs font-semibold px-2 py-0.5 rounded-full"
+  }, count)), hint && /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-400 mt-0.5 truncate"
+  }, hint)), /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-500 shrink-0"
   }, expandedSetupCats[key] ? /*#__PURE__*/React.createElement(IconChevronDown, {
     size: 20
   }) : /*#__PURE__*/React.createElement(IconChevronRight, {
@@ -230,7 +252,10 @@ const SetupCatsView = ({
     className: "flex-1 overflow-auto p-8 bg-slate-50"
   }, /*#__PURE__*/React.createElement("div", {
     className: "max-w-4xl mx-auto space-y-6"
-  }, section('basic', 'Basic Tasks', /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, section('basic', 'Basic Tasks', {
+    count: hardcodedBasicTasks.length,
+    hint: 'Fest eingebaute Standard-Tasks (z. B. Office) – immer aktiv.'
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "p-4 flex gap-2 border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
@@ -262,7 +287,10 @@ const SetupCatsView = ({
     className: "px-2 py-1 text-xs bg-slate-50 text-slate-600 border border-slate-200 rounded hover:bg-slate-100"
   }, t('cats.setInactive'))))), hardcodedBasicTasks.length === 0 && /*#__PURE__*/React.createElement("li", {
     className: "p-6 text-sm text-slate-400 text-center"
-  }, t('cats.noBasicTasks'))))), section('other', 'Other Tasks', /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, t('cats.noBasicTasks'))))), section('other', 'Other Tasks', {
+    count: otherTasks.length,
+    hint: 'Selbst erstellte Tasks – erscheinen in der Planung unter „Other".'
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "p-4 flex gap-2 border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
@@ -328,7 +356,10 @@ const SetupCatsView = ({
     }))));
   }), otherTasks.length === 0 && /*#__PURE__*/React.createElement("li", {
     className: "p-6 text-sm text-slate-400 text-center"
-  }, t('cats.noOtherTasks'))))), section('support', 'Support', /*#__PURE__*/React.createElement("ul", {
+  }, t('cats.noOtherTasks'))))), section('support', 'Support', {
+    count: activeSupportTasks.length,
+    hint: 'Support-Einsatzarten (24/7, CRM) mit fester Farbkennung.'
+  }, /*#__PURE__*/React.createElement("ul", {
     className: "divide-y divide-slate-200"
   }, activeSupportTasks.map(task => {
     const sc = SUPPORT_CHIP_COLORS[task] || {};
@@ -351,7 +382,10 @@ const SetupCatsView = ({
     }, t('cats.setInactive')));
   }), activeSupportTasks.length === 0 && /*#__PURE__*/React.createElement("li", {
     className: "p-6 text-sm text-slate-400 text-center"
-  }, t('cats.allSupportInactive')))), section('training', 'Trainings', /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, t('cats.allSupportInactive')))), section('training', 'Trainings', {
+    count: activeTrainingTasks.length + activeCustomTraining.length,
+    hint: 'Standard- und eigene Trainings für den Planungsdialog.'
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "p-4 flex gap-2 border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
@@ -414,7 +448,10 @@ const SetupCatsView = ({
     className: "text-rose-500 hover:text-rose-700"
   }, /*#__PURE__*/React.createElement(IconX, {
     size: 16
-  })))))))), section('offtime', t('cats.section.absences'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  })))))))), section('offtime', t('cats.section.absences'), {
+    count: activeOfftimeTasks.length,
+    hint: 'Urlaub, Krankheit, Gleitzeit usw. – blockieren Kapazität.'
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "p-4 flex gap-2 border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
@@ -457,7 +494,10 @@ const SetupCatsView = ({
     size: 16
   }))))), activeOfftimeTasks.length === 0 && /*#__PURE__*/React.createElement("li", {
     className: "p-6 text-sm text-slate-400 text-center"
-  }, t('cats.noAbsenceTypes'))))), section('empCats', t('cats.section.empCats'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, t('cats.noAbsenceTypes'))))), section('empCats', t('cats.section.empCats'), {
+    count: empCategories.length,
+    hint: 'Teams – gruppieren Mitarbeiter in allen Planungsansichten.'
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "p-4 flex gap-2 border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
@@ -485,7 +525,10 @@ const SetupCatsView = ({
     className: "text-rose-500 hover:text-rose-700"
   }, /*#__PURE__*/React.createElement(IconX, {
     size: 16
-  }))))))), section('projCats', t('cats.section.projCats'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }))))))), section('projCats', t('cats.section.projCats'), {
+    count: projCategories.length,
+    hint: 'Gruppieren Projekte in Übersicht und Verwaltung.'
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "p-4 flex gap-2 border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
@@ -521,7 +564,10 @@ const SetupCatsView = ({
     size: 16
   })))), projCategories.length === 0 && /*#__PURE__*/React.createElement("li", {
     className: "p-6 text-sm text-slate-400 text-center"
-  }, t('cats.noProjCategories'))))), section('projTypes', 'Projekt-Typen', /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, t('cats.noProjCategories'))))), section('projTypes', 'Projekt-Typen', {
+    count: (projTypes || []).length,
+    hint: 'Anlagentyp im Projekt-Formular und im Projektlabel (z. B. MW).'
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "p-4 flex gap-2 border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
@@ -547,7 +593,10 @@ const SetupCatsView = ({
     size: 16
   })))), (projTypes || []).length === 0 && /*#__PURE__*/React.createElement("li", {
     className: "p-6 text-sm text-slate-400 text-center"
-  }, "Noch keine Projekttypen definiert.")))), section('expenseCats', t('cats.section.expense'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+  }, "Noch keine Projekttypen definiert.")))), section('expenseCats', t('cats.section.expense'), {
+    count: expCats.length,
+    hint: 'Keyword-Zuordnung für den Spesen-Import – umbenenn- und erweiterbar.'
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "px-4 pt-3 pb-2 text-xs text-slate-500"
   }, t('cats.expenseHint')), /*#__PURE__*/React.createElement("ul", {
     className: "divide-y divide-slate-100"

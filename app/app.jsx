@@ -1952,9 +1952,9 @@ function App() {
                 const result = validateImportedState(rawParsed);
                 if (!result.ok) {
                     if (result.reason === 'futureVersion') {
-                        alert(`Diese Datei wurde mit einer neueren App-Version gespeichert (Schema v${result.version}, diese App nutzt v${SCHEMA_VERSION}). Bitte die App aktualisieren, bevor du sie importierst.`);
+                        showToast(`Diese Datei wurde mit einer neueren App-Version gespeichert (Schema v${result.version}, diese App nutzt v${SCHEMA_VERSION}). Bitte die App aktualisieren, bevor du sie importierst.`, { type: 'error', duration: 10000 });
                     } else {
-                        alert('Fehler beim Importieren der Daten: Die Datei konnte nicht gelesen werden.');
+                        showToast('Fehler beim Importieren: Die Datei konnte nicht gelesen werden.', { type: 'error', duration: 8000 });
                     }
                     return;
                 }
@@ -1989,11 +1989,11 @@ function App() {
                 // accounts remain unchanged across import.
                 showToast('Backup importiert – Nutzerkonten und PINs bleiben unverändert.', { type: 'success', duration: 5000 });
             } catch (err) {
-                alert('Fehler beim Importieren der Daten: Die Datei konnte nicht gelesen werden.');
+                showToast('Fehler beim Importieren: Die Datei konnte nicht gelesen werden.', { type: 'error', duration: 8000 });
             }
         };
         reader.readAsText(file);
-    }, []);
+    }, [showToast]);
 
     const buildInvoiceData = useCallback((proj, selection) => {
         const projAss = assignmentsByProject.get(proj.id) || [];
@@ -2232,19 +2232,33 @@ function App() {
             const nextColorId = PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id;
             return { name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', sharepointLink: '', notes: '' };
         };
+        // Inline-Validierung (abgeleitet, kein lokaler State: die Komponente
+        // wird inline definiert und remountet bei jedem App-Render).
+        const nameMissing = !projForm.name.trim();
+        const duplicateName = !nameMissing && projects.some(p =>
+            p.id !== editingProjectId
+            && p.name.trim().toLowerCase() === projForm.name.trim().toLowerCase());
+        const weekOrderInvalid = !!(projForm.startWeek && projForm.ibnWeek
+            && compareWeekIds(projForm.ibnWeek, projForm.startWeek) < 0);
+        const linkTrimmed = (projForm.sharepointLink || '').trim();
+        const linkInvalid = !!linkTrimmed && !/^https?:\/\//i.test(linkTrimmed);
+        const canSave = !nameMissing && !weekOrderInvalid && !linkInvalid;
+        // Live-Zusammenfassung des Zeitraums ("KW 40/25 – KW 50/26 · 63 Wochen")
+        const weekSpanLabel = (() => {
+            if (!projForm.startWeek || !projForm.ibnWeek || weekOrderInvalid) return null;
+            try {
+                const from = weekIdToMonday(projForm.startWeek);
+                const to = weekIdToMonday(projForm.ibnWeek);
+                const n = Math.round((to - from) / (7 * 86400000)) + 1;
+                return `${formatKW(projForm.startWeek)} – ${formatKW(projForm.ibnWeek)} · ${n} ${n === 1 ? 'Woche' : 'Wochen'}`;
+            } catch (e) { return null; }
+        })();
+        const fieldCls = "w-full p-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500";
+        const sectionTitle = (txt) => (
+            <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider pt-1">{txt}</h4>
+        );
         const save = () => {
-            if (!projForm.name.trim()) return;
-            if (projForm.startWeek && projForm.ibnWeek && compareWeekIds(projForm.ibnWeek, projForm.startWeek) < 0) {
-                alert('IBN-Woche darf nicht vor der Start-Woche liegen.');
-                return;
-            }
-            if (projForm.sharepointLink && projForm.sharepointLink.trim()) {
-                const link = projForm.sharepointLink.trim();
-                if (!/^https?:\/\//i.test(link)) {
-                    alert('SharePoint-Link muss mit https:// oder http:// beginnen.');
-                    return;
-                }
-            }
+            if (!canSave) return;
             if (isEditing) {
                 setProjects(projects.map(p => p.id === editingProjectId ? { ...p, ...projForm } : p));
                 setEditingProjectId(null);
@@ -2261,17 +2275,69 @@ function App() {
         };
         return (
             <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden">
                     <ModalHeader title={isEditing ? 'Projekt bearbeiten' : 'Neues Projekt'} onClose={cancel}/>
-                    <div className="p-6 space-y-4">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+
+                        {sectionTitle('Stammdaten')}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="col-span-2">
-                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Name</label>
-                                <input type="text" value={projForm.name} onChange={e => setProjForm({...projForm, name: e.target.value})} className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500" autoFocus/>
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Name <span className="text-rose-500">*</span></label>
+                                <input type="text" value={projForm.name} onChange={e => setProjForm({...projForm, name: e.target.value})}
+                                    placeholder="z.B. AFS Haut Cornet"
+                                    className={fieldCls} autoFocus/>
+                                {duplicateName && (
+                                    <p className="text-[11px] text-amber-600 mt-1">⚠ Ein Projekt mit diesem Namen existiert bereits – trotzdem möglich, aber leicht zu verwechseln.</p>
+                                )}
                             </div>
+                            <div>
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Projektnr.</label>
+                                <input type="text" maxLength={15} value={projForm.projectNumber} onChange={e => setProjForm({...projForm, projectNumber: e.target.value})} placeholder="GEA-2024-00001" className={`${fieldCls} font-mono`}/>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Kategorie</label>
+                                <select value={projForm.category} onChange={e => setProjForm({...projForm, category: e.target.value})} className={`${fieldCls} bg-white`}>
+                                    {projCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Typ</label>
+                                <select value={projForm.projType || ''} onChange={e => setProjForm({...projForm, projType: e.target.value})} className={`${fieldCls} bg-white`}>
+                                    <option value="">— kein Typ —</option>
+                                    {projTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Größe (Size)</label>
+                                <input type="number" min="0" step="1" value={projForm.size || ''} onChange={e => setProjForm({...projForm, size: e.target.value})} placeholder="z.B. 5" className={fieldCls}/>
+                            </div>
+                        </div>
+
+                        {sectionTitle('Zeitraum')}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Start (KW)</label>
+                                <input type="week" value={projForm.startWeek} onChange={e => setProjForm({...projForm, startWeek: e.target.value})} className={fieldCls}/>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">IBN (KW)</label>
+                                <input type="week" value={projForm.ibnWeek} onChange={e => setProjForm({...projForm, ibnWeek: e.target.value})}
+                                    className={`${fieldCls} ${weekOrderInvalid ? 'border-rose-400 ring-1 ring-rose-300' : ''}`}/>
+                            </div>
+                            <div className="col-span-2 -mt-2">
+                                {weekOrderInvalid ? (
+                                    <p className="text-[11px] text-rose-600">IBN-Woche darf nicht vor der Start-Woche liegen.</p>
+                                ) : weekSpanLabel ? (
+                                    <p className="text-[11px] text-slate-500">Laufzeit: <span className="font-medium text-slate-700">{weekSpanLabel}</span></p>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        {sectionTitle('Ort')}
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="col-span-2">
                                 <label className="block text-xs text-slate-700 mb-1 font-semibold">Adresse</label>
-                                <input type="text" value={projForm.address || ''} onChange={e => setProjForm({...projForm, address: e.target.value})} placeholder="Straße, PLZ Ort, Land" className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"/>
+                                <input type="text" value={projForm.address || ''} onChange={e => setProjForm({...projForm, address: e.target.value})} placeholder="Straße, PLZ Ort, Land" className={fieldCls}/>
                             </div>
                             <div className="col-span-2">
                                 <label className="block text-xs text-slate-700 mb-1 font-semibold">Land</label>
@@ -2281,7 +2347,7 @@ function App() {
                                         value={projForm.country || ''}
                                         onChange={e => setProjForm({...projForm, country: e.target.value})}
                                         placeholder="z.B. DE oder Deutschland"
-                                        className="flex-1 p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"
+                                        className={`flex-1 ${fieldCls}`}
                                     />
                                     {(() => {
                                         const code = resolveCountryCode(projForm.country);
@@ -2289,7 +2355,7 @@ function App() {
                                                      : code === '/'  ? 'bg-slate-50 border-slate-300 text-slate-400'
                                                      :                 'bg-emerald-50 border-emerald-300 text-emerald-700';
                                         return (
-                                            <span className={`px-3 py-2 rounded text-sm font-mono font-bold border min-w-[3.5rem] text-center flex items-center justify-center ${styled}`} title="Auflösung des Eingabefelds">
+                                            <span className={`px-3 py-2 rounded-md text-sm font-mono font-bold border min-w-[3.5rem] text-center flex items-center justify-center ${styled}`} title="Auflösung des Eingabefelds">
                                                 {code}
                                             </span>
                                         );
@@ -2297,58 +2363,42 @@ function App() {
                                 </div>
                                 <p className="text-[11px] text-slate-500 mt-1">Land oder ISO-Kürzel eingeben — wird auf einen 2-Buchstaben-Code aufgelöst. Erscheint in Übersicht und Projekte.</p>
                             </div>
+                        </div>
+
+                        {sectionTitle('Darstellung & Links')}
+                        <div className="space-y-4">
                             <div>
-                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Projektnr.</label>
-                                <input type="text" maxLength={15} value={projForm.projectNumber} onChange={e => setProjForm({...projForm, projectNumber: e.target.value})} placeholder="GEA-2024-00001" className="w-full p-2 border border-slate-400 rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"/>
+                                <label className="block text-xs text-slate-700 mb-2 font-semibold">Farbe <span className="font-normal text-slate-400">(Chips in der Planung)</span></label>
+                                <div className="flex flex-wrap gap-2">
+                                    {PROJECT_COLORS.map(c => (
+                                        <button key={c.id} onClick={() => setProjForm({...projForm, color: c.id})}
+                                            title={c.id}
+                                            className={`w-7 h-7 rounded-full border-2 transition-all ${c.dot} ${projForm.color === c.id ? 'border-slate-800 scale-110 shadow' : 'border-transparent hover:border-slate-400'}`}>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                             <div>
-                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Kategorie</label>
-                                <select value={projForm.category} onChange={e => setProjForm({...projForm, category: e.target.value})} className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400">
-                                    {projCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Typ</label>
-                                <select value={projForm.projType || ''} onChange={e => setProjForm({...projForm, projType: e.target.value})} className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400">
-                                    <option value="">— kein Typ —</option>
-                                    {projTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Größe (Size)</label>
-                                <input type="number" min="0" step="1" value={projForm.size || ''} onChange={e => setProjForm({...projForm, size: e.target.value})} placeholder="z.B. 5" className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"/>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Start (KW)</label>
-                                <input type="week" value={projForm.startWeek} onChange={e => setProjForm({...projForm, startWeek: e.target.value})} className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400"/>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-700 mb-1 font-semibold">IBN (KW)</label>
-                                <input type="week" value={projForm.ibnWeek} onChange={e => setProjForm({...projForm, ibnWeek: e.target.value})} className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400"/>
-                            </div>
-                            <div className="col-span-2">
                                 <label className="block text-xs text-slate-700 mb-1 font-semibold">SharePoint / Projektlink</label>
-                                <input type="url" value={projForm.sharepointLink || ''} onChange={e => setProjForm({...projForm, sharepointLink: e.target.value})} placeholder="https://..." className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"/>
+                                <input type="url" value={projForm.sharepointLink || ''} onChange={e => setProjForm({...projForm, sharepointLink: e.target.value})} placeholder="https://..."
+                                    className={`${fieldCls} ${linkInvalid ? 'border-rose-400 ring-1 ring-rose-300' : ''}`}/>
+                                {linkInvalid && <p className="text-[11px] text-rose-600 mt-1">Link muss mit https:// oder http:// beginnen.</p>}
                             </div>
-                            <div className="col-span-2">
-                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Notizen</label>
-                                <textarea rows={3} value={projForm.notes || ''} onChange={e => setProjForm({...projForm, notes: e.target.value})} placeholder="Interne Hinweise, Besonderheiten …" className="w-full p-2 border border-slate-400 rounded text-sm resize-y focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"/>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs text-slate-700 mb-2 font-semibold">Farbe</label>
-                            <div className="flex flex-wrap gap-2">
-                                {PROJECT_COLORS.map(c => (
-                                    <button key={c.id} onClick={() => setProjForm({...projForm, color: c.id})}
-                                        title={c.id}
-                                        className={`w-7 h-7 rounded-full border-2 transition-all ${c.dot} ${projForm.color === c.id ? 'border-slate-800 scale-110 shadow' : 'border-transparent hover:border-slate-400'}`}>
-                                    </button>
-                                ))}
+                            <div>
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">Notizen <span className="font-normal text-slate-400">(als Tooltip in der Planung sichtbar)</span></label>
+                                <textarea rows={3} value={projForm.notes || ''} onChange={e => setProjForm({...projForm, notes: e.target.value})} placeholder="Interne Hinweise, Besonderheiten …" className={`${fieldCls} resize-y`}/>
                             </div>
                         </div>
-                        <div className="flex gap-2 pt-2">
-                            <button onClick={cancel} className="flex-1 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">Abbruch</button>
-                            <button onClick={save} className="flex-1 bg-gea-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors">{isEditing ? 'Speichern' : 'Erstellen'}</button>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-2">
+                        {nameMissing && <span className="text-xs text-slate-400">Name eingeben, um zu speichern</span>}
+                        <div className="flex gap-2 ml-auto">
+                            <button onClick={cancel} className="bg-white border border-slate-300 text-slate-600 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">Abbruch</button>
+                            <button onClick={save} disabled={!canSave}
+                                className="bg-gea-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                                {isEditing ? 'Speichern' : 'Projekt erstellen'}
+                            </button>
                         </div>
                     </div>
                 </div>
