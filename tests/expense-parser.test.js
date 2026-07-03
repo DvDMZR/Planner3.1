@@ -154,6 +154,144 @@ test('parseExpenseReport: alle 3 Einzelposten des Beispiels korrekt', () => {
     assert.equal(r.warnings.length, 0);
 });
 
+// Zweites Real-Beispiel: Euro-Abrechnung. Beträge mit €-Symbol OHNE
+// Leerzeichen ("276,00€") statt ISO-Code, plus Text-Block nach dem letzten
+// Posten (Trennlinie + Legende), der die letzte Zeile nicht verschmutzen darf.
+const SAMPLE_EUR = `Kostenabrechnung
+Abrechnungsname :
+Bauknecht
+Abrechnungs-ID :
+6BCEC54609754B89B519
+Abrechnungsschlüssel :
+908101
+Mitarbeitername :
+Salih Cetinkilic
+Mitarbeiter-ID :
+115881
+Genehmigungsstatus :
+Genehmigt
+Zahlungsstatus :
+Zur Zahlung übermittelt
+Währung :
+Euro
+ERP System :
+Produktivmandant PL1/
+GEA Firmen Nummer :
+GEA FT Admin
+Kostenart :
+Cost Center
+Kostenart Nummer :
+AFS enhanced
+Geschäftszweck :
+Steady Bite Welle 1
+Contains Cash Advance? :
+Nein
+Mitarbeiterausgaben
+Betrag fällig an Unternehmenskarte von Mitarbeiter :
+0,00€
+
+Ausgaben, für die Belege erforderlich sind
+Transaktionsdatum
+
+Ausgabentyp
+
+Geschäftszweck
+
+Lieferant
+
+Ort
+
+Zahlungsart
+
+Betrag
+
+04.10.2025
+
+Hotel
+
+Steady Bite Welle 1
+
+HOTEL HIRT
+
+Deisslingen
+
+Bar
+
+276,00€
+
+01.10.2025
+
+Hotel
+
+Steady Bite Welle 1
+
+SONNENHOF SONNHALDE
+
+Ühlingen-Birkendorf
+
+Bar
+
+258,00€
+
+04.10.2025
+
+Tagespauschale
+
+Steady Bite Welle 1
+
+
+Deisslingen
+
+Bar
+
+8,40€
+
+_________
+Datum
+Kostenart
+Name (Unnötige Info)
+Ort (Unnötige Info)
+Zahlungsart (unnötige Info)
+Summe`;
+
+test('parseExpenseReport: Euro-Abrechnung mit €-Symbol und Fußzeilen-Block', () => {
+    const r = app.parseExpenseReport(SAMPLE_EUR);
+    assert.equal(r.ok, true);
+    assert.equal(r.header.employeeName, 'Salih Cetinkilic');
+    assert.equal(r.header.currency, 'EUR');
+    assert.equal(r.items.length, 3);
+
+    const [hotel1, hotel2, pauschale] = r.items;
+    assert.equal(hotel1.date, '2025-10-04');
+    assert.equal(hotel1.type, 'Hotel');
+    assert.equal(hotel1.category, 'accommodation');
+    assert.equal(hotel1.vendor, 'HOTEL HIRT');
+    assert.equal(hotel1.location, 'Deisslingen');
+    assert.equal(hotel1.amount, 276);
+    assert.equal(hotel1.currency, 'EUR');
+
+    assert.equal(hotel2.vendor, 'SONNENHOF SONNHALDE');
+    assert.equal(hotel2.location, 'Ühlingen-Birkendorf');
+    assert.equal(hotel2.amount, 258);
+
+    // Letzter Posten: kein Lieferant UND Fußzeilen-Block danach –
+    // die Legende (Datum/Kostenart/…/Summe) darf nicht in die Felder rutschen.
+    assert.equal(pauschale.type, 'Tagespauschale');
+    assert.equal(pauschale.category, 'meals');
+    assert.equal(pauschale.vendor, '');
+    assert.equal(pauschale.location, 'Deisslingen');
+    assert.equal(pauschale.paymentMethod, 'Bar');
+    assert.equal(pauschale.amount, 8.4);
+    assert.equal(r.warnings.length, 0);
+});
+
+test('parseAmountWithCurrency: Symbol-Schreibweisen', () => {
+    assert.deepEqual(app.parseAmountWithCurrency('276,00€'), { amount: 276, currency: 'EUR' });
+    assert.deepEqual(app.parseAmountWithCurrency('276,00 €'), { amount: 276, currency: 'EUR' });
+    assert.deepEqual(app.parseAmountWithCurrency('1.234,56€'), { amount: 1234.56, currency: 'EUR' });
+    assert.deepEqual(app.parseAmountWithCurrency('12,50 zł'), { amount: 12.5, currency: 'PLN' });
+});
+
 test('parseExpenseReport: unbrauchbarer Text wird abgelehnt', () => {
     assert.equal(app.parseExpenseReport('').ok, false);
     assert.equal(app.parseExpenseReport('Hallo Welt\nnur Text').ok, false);
