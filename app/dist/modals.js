@@ -281,36 +281,41 @@ const AssignmentModal = ({
   };
   const TYPE_BUTTONS = [{
     value: 'training',
-    label: 'Training'
+    label: t('modal.typeTraining')
   }, {
     value: 'support',
-    label: 'Support'
+    label: t('modal.typeSupport')
   }, {
     value: 'basic',
-    label: 'Basic'
+    label: t('modal.typeBasic')
   }, {
     value: 'other',
-    label: 'Other'
+    label: t('modal.typeOther')
   }, {
     value: 'project',
     label: t('modal.typeProject')
   }, {
     value: 'offtime',
-    label: 'Offtime'
+    label: t('modal.typeOfftime')
   }, {
     value: 'new',
-    label: '+ Neu'
+    label: t('modal.typeNew')
   }];
+
+  // Speichern nur mit vollständigen Eingaben – vorher tat der Button bei
+  // Typ "+ Neu" ohne Namen einfach nichts (stummer return).
+  const newNameMissing = formData.type === 'new' && !newTaskName.trim();
+  const canSave = !newNameMissing;
   const hardcodedBasicTasks = basicTasks.filter(t => !basicTasksMeta?.[t]);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden"
+    className: "bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden"
   }, /*#__PURE__*/React.createElement(ModalHeader, {
     title: formData.id ? t('modal.assignEdit') : t('modal.assignAdd'),
     onClose: onClose
   }), /*#__PURE__*/React.createElement("div", {
-    className: "p-6 space-y-4"
+    className: "flex-1 overflow-y-auto p-6 space-y-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-slate-500"
   }, /*#__PURE__*/React.createElement("span", {
@@ -514,15 +519,13 @@ const AssignmentModal = ({
     className: "flex-1"
   }, /*#__PURE__*/React.createElement("label", {
     className: "block text-xs text-slate-400 mb-1"
-  }, t('modal.untilWeek')), /*#__PURE__*/React.createElement("input", {
-    type: "week",
+  }, t('modal.untilWeek')), /*#__PURE__*/React.createElement(WeekPickerInput, {
     value: recurRule.endWeek,
-    min: addWeeks(formData.week, 1),
-    onChange: e => setRecurRule(r => ({
+    minWeek: formData.week,
+    onChange: w => setRecurRule(r => ({
       ...r,
-      endWeek: e.target.value
-    })),
-    className: "w-full p-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gea-400"
+      endWeek: w
+    }))
   }))))), /*#__PURE__*/React.createElement("label", {
     className: `flex items-center gap-2 select-none ${canNotify ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'}`
   }, /*#__PURE__*/React.createElement("input", {
@@ -573,13 +576,16 @@ const AssignmentModal = ({
   }, /*#__PURE__*/React.createElement(IconRepeat, {
     size: 11
   }), " ", t('modal.deleteSeriesFrom'))) : /*#__PURE__*/React.createElement("div", null), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, /*#__PURE__*/React.createElement("button", {
+    className: "flex items-center gap-2"
+  }, newNameMissing && /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-slate-400 mr-1"
+  }, t('modal.newTaskNameRequired')), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 font-medium"
   }, t('btn.cancel')), /*#__PURE__*/React.createElement("button", {
     onClick: handleSave,
-    className: "px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium"
+    disabled: !canSave,
+    className: "px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
   }, t('btn.save'))))));
 };
 const CopyModal = ({

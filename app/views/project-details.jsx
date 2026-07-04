@@ -81,7 +81,9 @@ const ProjectDetailsView = ({ s, h }) => {
             <div className="flex-1 overflow-auto bg-slate-50 flex flex-col">
                 {/* Header */}
                 <div className="p-5 border-b border-slate-300 bg-white flex items-center gap-4 flex-wrap shadow-sm">
-                    <button onClick={() => setSelectedProjectDetails(null)} className="p-2 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors flex-shrink-0">
+                    <button onClick={() => setSelectedProjectDetails(null)}
+                        title={t('projDetail.backToList')} aria-label={t('projDetail.backToList')}
+                        className="p-2 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors flex-shrink-0">
                         <IconArrowLeft size={20}/>
                     </button>
                     <div className="flex-1 min-w-0">
@@ -203,9 +205,12 @@ const ProjectDetailsView = ({ s, h }) => {
                             </button>
                         </div>
                         {projCostItems.length === 0 ? (
-                            <div className="p-10 text-center text-slate-400 text-sm">
-                                {t('projDetail.noCostItems')}
-                            </div>
+                            <EmptyState
+                                icon={<IconFileText size={28}/>}
+                                title={t('projDetail.noCostItems')}
+                                description={t('projDetail.noCostItemsDesc')}
+                                action={{ label: t('projDetail.costItem'), onClick: () => { setEditingCostItem(null); setIsCostItemModalOpen(true); } }}
+                            />
                         ) : (
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-slate-50 border-b border-slate-200">

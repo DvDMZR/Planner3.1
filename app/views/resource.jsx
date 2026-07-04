@@ -223,7 +223,7 @@ const ResourceView = ({ s, h }) => {
                         title={t('resource.noEmps')}
                         description={isLoggedIn
                             ? t('resource.noEmpsDesc')
-                            : "Bitte melden Sie sich an, um Mitarbeiter anzulegen."}
+                            : t('common.loginToCreate')}
                         action={isLoggedIn ? { label: t('resource.addEmp'), onClick: () => setActiveTab('setup_emp') } : null}
                     />
                 </div>

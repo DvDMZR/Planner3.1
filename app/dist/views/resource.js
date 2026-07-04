@@ -323,7 +323,7 @@ const ResourceView = ({
         size: 32
       }),
       title: t('resource.noEmps'),
-      description: isLoggedIn ? t('resource.noEmpsDesc') : "Bitte melden Sie sich an, um Mitarbeiter anzulegen.",
+      description: isLoggedIn ? t('resource.noEmpsDesc') : t('common.loginToCreate'),
       action: isLoggedIn ? {
         label: t('resource.addEmp'),
         onClick: () => setActiveTab('setup_emp')

@@ -184,6 +184,15 @@ const _SidebarBase = ({
     }),
     className: `w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors font-medium ${activeTab === tab ? 'bg-gea-600 text-white shadow-sm' : 'text-gea-300 hover:bg-gea-800 hover:text-white'}`
   }, icon, " ", label);
+
+  // DE/EN-Umschalter – identisch für ein-/ausgeloggten Zustand
+  const langSwitcher = /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-0.5 shrink-0"
+  }, ['de', 'en'].map(lng => /*#__PURE__*/React.createElement("button", {
+    key: lng,
+    onClick: () => setLanguage(lng),
+    className: `px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors ${language === lng ? 'bg-gea-600 text-white' : 'text-gea-500 hover:text-gea-300'}`
+  }, lng.toUpperCase())));
   return /*#__PURE__*/React.createElement("aside", {
     className: "w-60 bg-gea-900 text-gea-100 flex flex-col h-full shrink-0 shadow-xl"
   }, /*#__PURE__*/React.createElement("div", {
@@ -301,13 +310,7 @@ const _SidebarBase = ({
     className: "text-gea-200 text-xs font-medium truncate block"
   }, currentUser.name), /*#__PURE__*/React.createElement("span", {
     className: "text-gea-500 text-xs"
-  }, isAdmin ? t('auth.administrator') : t('auth.activeUser'))), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-0.5 shrink-0"
-  }, ['de', 'en'].map(lng => /*#__PURE__*/React.createElement("button", {
-    key: lng,
-    onClick: () => setLanguage(lng),
-    className: `px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors ${language === lng ? 'bg-gea-600 text-white' : 'text-gea-500 hover:text-gea-300'}`
-  }, lng.toUpperCase()))), /*#__PURE__*/React.createElement(Tooltip, {
+  }, isAdmin ? t('auth.administrator') : t('auth.activeUser'))), langSwitcher, /*#__PURE__*/React.createElement(Tooltip, {
     text: t('auth.logout'),
     side: "top"
   }, /*#__PURE__*/React.createElement("button", {
@@ -327,13 +330,7 @@ const _SidebarBase = ({
     className: "flex-1 flex items-center gap-2 text-gea-400 hover:text-white text-xs px-2 py-1.5 rounded hover:bg-gea-800 transition-colors"
   }, /*#__PURE__*/React.createElement(IconLogIn, {
     size: 15
-  }), " ", t('auth.login')), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-0.5 shrink-0"
-  }, ['de', 'en'].map(lng => /*#__PURE__*/React.createElement("button", {
-    key: lng,
-    onClick: () => setLanguage(lng),
-    className: `px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors ${language === lng ? 'bg-gea-600 text-white' : 'text-gea-500 hover:text-gea-300'}`
-  }, lng.toUpperCase()))))), (SP_CONTEXT || fsStatus === 'connected') && /*#__PURE__*/React.createElement("div", {
+  }), " ", t('auth.login')), langSwitcher)), (SP_CONTEXT || fsStatus === 'connected') && /*#__PURE__*/React.createElement("div", {
     className: "px-4 py-3 border-t border-gea-700 flex items-center gap-2 shrink-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: `w-2 h-2 rounded-full shrink-0 ${syncStatus === 'idle' ? 'bg-emerald-400' : syncStatus === 'syncing' ? 'bg-amber-400 animate-pulse' : syncStatus === 'updated' ? 'bg-blue-400' : syncStatus === 'conflict-reload' ? 'bg-orange-400' : syncStatus === 'reconnecting' ? 'bg-amber-400 animate-pulse' : syncStatus === 'needs-auth' ? 'bg-rose-500' : syncStatus === 'offline' ? 'bg-rose-500' : 'bg-amber-400 animate-pulse'}`

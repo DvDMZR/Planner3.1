@@ -305,6 +305,7 @@ const DataView = ({
       setNewName(e.target.value);
       setNewError('');
     },
+    onKeyDown: e => e.key === 'Enter' && handleAdd(),
     className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400",
     placeholder: "z.B. Max Mustermann"
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
@@ -316,6 +317,7 @@ const DataView = ({
       setNewPin(e.target.value);
       setNewError('');
     },
+    onKeyDown: e => e.key === 'Enter' && handleAdd(),
     className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400",
     placeholder: t('data.pinMinLength')
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
@@ -334,7 +336,8 @@ const DataView = ({
     className: "text-rose-600 text-xs"
   }, newError), /*#__PURE__*/React.createElement("button", {
     onClick: handleAdd,
-    className: "px-4 py-2 bg-gea-600 text-white rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors"
+    disabled: !newName.trim() || newPin.length < 4 || newPin !== newPinConfirm,
+    className: "px-4 py-2 bg-gea-600 text-white rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
   }, t('btn.add')), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-400"
   }, t('data.newUserRole')))), section(t('data.sectionAliases'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {

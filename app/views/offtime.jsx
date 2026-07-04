@@ -120,6 +120,18 @@ const OfftimeView = ({ s, h }) => {
         });
     }, [setAssignments]);
 
+    // Mitarbeiter-Suche (kommagetrennte Begriffe, 250 ms Debounce – wie im
+    // Ressourcen-Reiter)
+    const [empSearch, setEmpSearch] = React.useState('');
+    const [empSearchRaw, setEmpSearchRaw] = React.useState('');
+    const empDebounceRef = React.useRef(null);
+    const searchTerms = React.useMemo(
+        () => empSearch.split(',').map(x => x.trim().toLowerCase()).filter(Boolean),
+        [empSearch]);
+    const matchesEmpSearch = React.useCallback(
+        (e) => searchTerms.length === 0 || searchTerms.some(q => (e.name || '').toLowerCase().includes(q)),
+        [searchTerms]);
+
     const monthGroups = React.useMemo(() => {
         const groups = [];
         let cur = null;
@@ -149,9 +161,9 @@ const OfftimeView = ({ s, h }) => {
                 <h2 className="text-gea-800 text-xl font-semibold shrink-0">{t('offtime.title')}</h2>
                 <div className="flex items-center gap-2">
                     <div className="flex items-center">
-                        <button onClick={() => scrollWeeks(-4)} className="p-1.5 rounded-l bg-gea-100 text-gea-700 hover:bg-gea-200 transition-colors border-r border-gea-200" title={t('btn.weeks4back')}><IconChevronLeft size={16}/></button>
+                        <Tooltip text={t('btn.weeks4back')}><button onClick={() => scrollWeeks(-4)} className="p-1.5 rounded-l bg-gea-100 text-gea-700 hover:bg-gea-200 transition-colors border-r border-gea-200"><IconChevronLeft size={16}/></button></Tooltip>
                         <span className="px-2 text-xs text-slate-500 bg-gea-50 h-[30px] flex items-center min-w-[130px] justify-center border-y border-gea-100 font-mono tabular-nums">{scrollInfo.label || '—'}</span>
-                        <button onClick={() => scrollWeeks(4)} className="p-1.5 rounded-r bg-gea-100 text-gea-700 hover:bg-gea-200 transition-colors border-l border-gea-200" title={t('btn.weeks4fwd')}><IconChevronRight size={16}/></button>
+                        <Tooltip text={t('btn.weeks4fwd')}><button onClick={() => scrollWeeks(4)} className="p-1.5 rounded-r bg-gea-100 text-gea-700 hover:bg-gea-200 transition-colors border-l border-gea-200"><IconChevronRight size={16}/></button></Tooltip>
                     </div>
                     <select value={timelineYear} onChange={e => setTimelineYear(Number(e.target.value))}
                         className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-gea-400">
@@ -163,6 +175,24 @@ const OfftimeView = ({ s, h }) => {
                     }} className="px-3 py-1.5 bg-gea-100 text-gea-700 rounded-lg text-sm font-medium hover:bg-gea-200 transition-colors">
                         {t('btn.today')}
                     </button>
+                </div>
+                <div className="relative">
+                    <IconUsers size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                    <input type="text" value={empSearchRaw}
+                        onChange={e => {
+                            const v = e.target.value;
+                            setEmpSearchRaw(v);
+                            if (empDebounceRef.current) clearTimeout(empDebounceRef.current);
+                            empDebounceRef.current = setTimeout(() => setEmpSearch(v), 250);
+                        }}
+                        placeholder={t('resource.empSearch')}
+                        className="pl-7 pr-7 py-1.5 border border-slate-300 rounded text-sm bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-gea-400 w-44"/>
+                    {empSearchRaw && (
+                        <button onClick={() => {
+                            if (empDebounceRef.current) clearTimeout(empDebounceRef.current);
+                            setEmpSearchRaw(''); setEmpSearch('');
+                        }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><IconX size={12}/></button>
+                    )}
                 </div>
                 {isDeleteMode && (
                     <div className="flex items-center bg-rose-50 border border-rose-300 rounded-lg overflow-hidden shrink-0">
@@ -260,9 +290,20 @@ const OfftimeView = ({ s, h }) => {
                         </tr>
                     </thead>
                     <tbody>
+                        {activeEmpCategories.length === 0 && (
+                            <tr><td colSpan={99} className="p-0">
+                                <EmptyState
+                                    icon={<IconSunset size={32}/>}
+                                    title={t('offtime.emptyTitle')}
+                                    description={t('offtime.emptyDesc')}
+                                    action={{ label: t('offtime.emptyCta'), onClick: () => setActiveTab('setup_emp') }}
+                                />
+                            </td></tr>
+                        )}
                         {activeEmpCategories.map(category => {
-                            const isCollapsed = collapsedCategories[category];
-                            const catEmps = activeEmpsByCategory.get(category) || [];
+                            const isCollapsed = searchTerms.length > 0 ? false : collapsedCategories[category];
+                            const catEmps = (activeEmpsByCategory.get(category) || []).filter(matchesEmpSearch);
+                            if (searchTerms.length > 0 && catEmps.length === 0) return null;
 
                             return (
                                 <React.Fragment key={category}>

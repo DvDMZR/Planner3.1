@@ -127,7 +127,7 @@ const TimelineView = ({ s, h }) => {
                         title={t('timeline.noProjects')}
                         description={isLoggedIn
                             ? t('timeline.noProjectsDesc')
-                            : "Bitte melden Sie sich an, um Projekte anzulegen."}
+                            : t('common.loginToCreate')}
                         action={isLoggedIn ? { label: t('timeline.addProject'), onClick: () => setActiveTab('setup_proj') } : null}
                     />
                 </div>

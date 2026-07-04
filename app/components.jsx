@@ -192,7 +192,7 @@ const WeekCalendarPicker = ({ value, onChange, minWeek }) => {
             <div className="p-1 space-y-0.5 max-h-48 overflow-y-auto">
                 {weeksInView.map(({ weekId, mon, sun }) => {
                     const isSelected = weekId === value;
-                    const isDisabled = minWeek && weekId <= minWeek;
+                    const isDisabled = minWeek && compareWeekIds(weekId, minWeek) <= 0;
                     const kw = parseInt(weekId.split('-W')[1]);
                     return (
                         <button key={weekId} type="button"
@@ -210,6 +210,35 @@ const WeekCalendarPicker = ({ value, onChange, minWeek }) => {
                     );
                 })}
             </div>
+        </div>
+    );
+};
+
+// Einheitliche Wochen-Auswahl für Formulare: Button zeigt "KW 40/26", Klick
+// klappt den WeekCalendarPicker INLINE darunter aus (kein Popover – vermeidet
+// Clipping in scrollenden Modal-Bodies). Ersetzt die browserabhängigen
+// <input type="week">-Felder (Firefox/Safari rendern dort keinen KW-Picker).
+const WeekPickerInput = ({ value, onChange, minWeek, placeholder = 'KW wählen …', invalid = false }) => {
+    const [open, setOpen] = React.useState(false);
+    // WeekCalendarPicker braucht einen gültigen Startwert für die Monats-Navigation
+    const calendarValue = value || getWeekString(new Date());
+    return (
+        <div>
+            <button type="button" onClick={() => setOpen(o => !o)}
+                aria-expanded={open}
+                className={`w-full p-2 border rounded-md text-sm text-left flex items-center justify-between gap-2 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-gea-400 ${
+                    invalid ? 'border-rose-400 ring-1 ring-rose-300' : open ? 'border-gea-500' : 'border-slate-300 hover:border-gea-400'}`}>
+                <span className={value ? 'text-slate-800 font-medium' : 'text-slate-400'}>
+                    {value ? formatKW(value) : placeholder}
+                </span>
+                <IconCalendar size={15} className="text-slate-400 shrink-0"/>
+            </button>
+            {open && (
+                <div className="mt-1">
+                    <WeekCalendarPicker value={calendarValue} minWeek={minWeek}
+                        onChange={(w) => { onChange(w); setOpen(false); }}/>
+                </div>
+            )}
         </div>
     );
 };

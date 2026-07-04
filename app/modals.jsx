@@ -280,22 +280,27 @@ const AssignmentModal = ({
     };
 
     const TYPE_BUTTONS = [
-        { value: 'training', label: 'Training' },
-        { value: 'support',  label: 'Support' },
-        { value: 'basic',    label: 'Basic' },
-        { value: 'other',    label: 'Other' },
+        { value: 'training', label: t('modal.typeTraining') },
+        { value: 'support',  label: t('modal.typeSupport') },
+        { value: 'basic',    label: t('modal.typeBasic') },
+        { value: 'other',    label: t('modal.typeOther') },
         { value: 'project',  label: t('modal.typeProject') },
-        { value: 'offtime',  label: 'Offtime' },
-        { value: 'new',      label: '+ Neu' },
+        { value: 'offtime',  label: t('modal.typeOfftime') },
+        { value: 'new',      label: t('modal.typeNew') },
     ];
+
+    // Speichern nur mit vollständigen Eingaben – vorher tat der Button bei
+    // Typ "+ Neu" ohne Namen einfach nichts (stummer return).
+    const newNameMissing = formData.type === 'new' && !newTaskName.trim();
+    const canSave = !newNameMissing;
 
     const hardcodedBasicTasks = basicTasks.filter(t => !basicTasksMeta?.[t]);
 
     return (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
                 <ModalHeader title={formData.id ? t('modal.assignEdit') : t('modal.assignAdd')} onClose={onClose} />
-                <div className="p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
                     <div className="text-sm text-slate-500">
                         <span className="text-slate-900 font-medium">{emp?.name}</span>
                         <span className="mx-2">·</span>
@@ -460,11 +465,10 @@ const AssignmentModal = ({
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="block text-xs text-slate-400 mb-1">{t('modal.untilWeek')}</label>
-                                                    <input type="week"
+                                                    <WeekPickerInput
                                                         value={recurRule.endWeek}
-                                                        min={addWeeks(formData.week, 1)}
-                                                        onChange={e => setRecurRule(r => ({ ...r, endWeek: e.target.value }))}
-                                                        className="w-full p-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gea-400"/>
+                                                        minWeek={formData.week}
+                                                        onChange={w => setRecurRule(r => ({ ...r, endWeek: w }))}/>
                                                 </div>
                                             </div>
                                         </div>
@@ -515,9 +519,11 @@ const AssignmentModal = ({
                             )}
                         </div>
                     ) : <div/>}
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
+                        {newNameMissing && <span className="text-xs text-slate-400 mr-1">{t('modal.newTaskNameRequired')}</span>}
                         <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 font-medium">{t('btn.cancel')}</button>
-                        <button onClick={handleSave} className="px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium">{t('btn.save')}</button>
+                        <button onClick={handleSave} disabled={!canSave}
+                            className="px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed">{t('btn.save')}</button>
                     </div>
                 </div>
             </div>

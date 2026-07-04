@@ -93,24 +93,47 @@ const SetupEmpView = ({ s, h }) => {
         const emailValid = isValidEmail(empForm.email);
         const canSave = empForm.name.trim() && emailValid;
 
+        // Suche über Name, Email und Rolle (bei vielen Mitarbeitern nötig)
+        const [empSearch, setEmpSearch] = React.useState('');
+        const empQ = empSearch.trim().toLowerCase();
+        const matchesEmpSearch = (e) => !empQ
+            || (e.name || '').toLowerCase().includes(empQ)
+            || (e.email || '').toLowerCase().includes(empQ)
+            || (e.role || '').toLowerCase().includes(empQ);
+
         return (
             <div className="flex-1 overflow-auto p-8 bg-slate-50">
                 <div className="max-w-4xl mx-auto space-y-6">
 
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                            <h2 className="text-xl text-slate-900 font-medium">{t('emp.title')}</h2>
-                            <button onClick={openCreateForm}
-                                className="bg-gea-600 text-white px-4 py-2 rounded text-sm hover:bg-gea-700 font-medium transition-colors flex items-center gap-2">
-                                <IconPlus size={16}/> {t('emp.add')}
-                            </button>
+                        <div className="p-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap">
+                            <h2 className="text-xl text-slate-900 font-medium shrink-0">{t('emp.title')}</h2>
+                            <div className="flex items-center gap-3 flex-1 justify-end">
+                                <div className="relative flex-1 max-w-sm">
+                                    <IconSearch size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                                    <input type="text" value={empSearch}
+                                        onChange={e => setEmpSearch(e.target.value)}
+                                        placeholder={t('emp.searchPlaceholder')}
+                                        className="w-full pl-8 pr-7 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 bg-white"/>
+                                    {empSearch && (
+                                        <button onClick={() => setEmpSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><IconX size={14}/></button>
+                                    )}
+                                </div>
+                                <button onClick={openCreateForm}
+                                    className="bg-gea-600 text-white px-4 py-2 rounded text-sm hover:bg-gea-700 font-medium transition-colors flex items-center gap-2 shrink-0">
+                                    <IconPlus size={16}/> {t('emp.add')}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         {empCategories.map(category => {
-                            const isCollapsed = collapsedEmpSetup[category];
-                            const catEmps = employees.filter(e => e.category === category);
+                            // Bei aktiver Suche Kategorien aufgeklappt lassen,
+                            // sonst sind Treffer unsichtbar.
+                            const isCollapsed = empQ ? false : collapsedEmpSetup[category];
+                            const catEmps = employees.filter(e => e.category === category && matchesEmpSearch(e));
+                            if (empQ && catEmps.length === 0) return null;
 
                             return (
                                 <div key={category} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -183,10 +206,14 @@ const SetupEmpView = ({ s, h }) => {
                     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden" style={{maxHeight:'90vh'}}>
                             <ModalHeader title={editingEmpId ? t('emp.editTitle') : t('emp.addTitle')} onClose={closeForm}/>
-                            <div className="p-6 space-y-4 overflow-y-auto" style={{maxHeight:'calc(90vh - 130px)'}}>
+                            <div className="p-6 space-y-4 overflow-y-auto" style={{maxHeight:'calc(90vh - 130px)'}}
+                                onKeyDown={e => {
+                                    // Enter speichert (außer im Notizen-Textarea)
+                                    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && canSave) handleSaveEmp();
+                                }}>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="col-span-2">
-                                        <label className="block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">Name *</label>
+                                        <label className="block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">{t('emp.fieldName')} *</label>
                                         <input type="text" autoFocus value={empForm.name} onChange={e=>setEmpForm({...empForm, name: e.target.value})}
                                             className="w-full p-2 border border-slate-300 rounded text-sm"/>
                                     </div>
@@ -201,7 +228,7 @@ const SetupEmpView = ({ s, h }) => {
                                         <input type="number" min="1" max="80" value={empForm.weeklyHours} onChange={e=>setEmpForm({...empForm, weeklyHours: e.target.value})} className="w-full p-2 border border-slate-300 rounded text-sm"/>
                                     </div>
                                     <div className="col-span-2">
-                                        <label className="block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">Email</label>
+                                        <label className="block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">{t('emp.fieldEmail')}</label>
                                         <input type="email" value={empForm.email} onChange={e=>setEmpForm({...empForm, email: e.target.value})}
                                             placeholder="vorname.nachname@firma.de"
                                             className={`w-full p-2 border rounded text-sm ${emailValid ? 'border-slate-300' : 'border-rose-400 bg-rose-50'}`}/>

@@ -212,15 +212,24 @@ const UtilizationView = ({
     if (maxPct >= 200) return {
       emoji: '💢',
       tone: 'text-rose-600',
-      title: `Spitze: ${maxPct}% – doppelt verplant`
+      title: t('util.peakDouble', {
+        pct: maxPct
+      })
     };
     if (maxPct >= 150) return {
       emoji: '💢',
       tone: 'text-amber-500',
-      title: `Spitze: ${maxPct}% – Überlast`
+      title: t('util.peakOver', {
+        pct: maxPct
+      })
     };
     return null;
   };
+
+  // Mitarbeiter-Suche (kommagetrennte Begriffe wie im Ressourcen-Reiter)
+  const [empSearch, setEmpSearch] = React.useState('');
+  const searchTerms = React.useMemo(() => empSearch.split(',').map(x => x.trim().toLowerCase()).filter(Boolean), [empSearch]);
+  const matchesEmpSearch = e => searchTerms.length === 0 || searchTerms.some(q => (e.name || '').toLowerCase().includes(q));
   const activeCategories = activeEmpCategories;
   return /*#__PURE__*/React.createElement("div", {
     className: "flex-1 flex flex-col h-full bg-white overflow-hidden"
@@ -231,6 +240,24 @@ const UtilizationView = ({
   }, t('util.title')), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-slate-500"
   }, t('util.subtitle'))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3 items-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "relative"
+  }, /*#__PURE__*/React.createElement(IconUsers, {
+    size: 14,
+    className: "absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: empSearch,
+    onChange: e => setEmpSearch(e.target.value),
+    placeholder: t('resource.empSearch'),
+    className: "pl-7 pr-7 py-2 border border-slate-300 rounded text-sm bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-gea-400 w-44"
+  }), empSearch && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEmpSearch(''),
+    className: "absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+  }, /*#__PURE__*/React.createElement(IconX, {
+    size: 12
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-4 items-center bg-slate-50 p-3 rounded-lg border border-slate-200"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-sm text-slate-700 font-medium"
@@ -248,7 +275,7 @@ const UtilizationView = ({
     value: 24
   }, t('util.weeks24')), /*#__PURE__*/React.createElement("option", {
     value: 52
-  }, t('util.weeks52'))))), /*#__PURE__*/React.createElement("div", {
+  }, t('util.weeks52')))))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-auto px-6 pb-6"
   }, /*#__PURE__*/React.createElement("table", {
     className: "w-full border-collapse text-sm"
@@ -256,7 +283,7 @@ const UtilizationView = ({
     className: "p-2 border-b-2 border-slate-300 text-left w-48 text-slate-500 font-medium sticky top-0 z-20 bg-white"
   }, t('util.colEmployee')), /*#__PURE__*/React.createElement("th", {
     className: "p-2 border-b-2 border-slate-300 text-center w-32 text-gea-600 bg-gea-50 font-medium sticky top-0 z-20"
-  }, "\xD8 Zeitraum"), months.map(m => {
+  }, t('util.colAvg')), months.map(m => {
     const firstWeek = weeksByMonth[m]?.[0];
     const jumpToMonth = () => {
       if (!firstWeek) return;
@@ -277,8 +304,9 @@ const UtilizationView = ({
       className: `p-2 border-b-2 border-slate-300 text-center text-slate-500 font-medium sticky top-0 z-20 bg-white ${firstWeek ? 'cursor-pointer hover:text-gea-700 hover:bg-slate-50' : ''}`
     }, m);
   }))), /*#__PURE__*/React.createElement("tbody", null, activeCategories.map(category => {
-    const isCollapsed = collapsedCategories[category];
-    const catEmps = activeEmpsByCategory.get(category) || [];
+    const isCollapsed = searchTerms.length > 0 ? false : collapsedCategories[category];
+    const catEmps = (activeEmpsByCategory.get(category) || []).filter(matchesEmpSearch);
+    if (searchTerms.length > 0 && catEmps.length === 0) return null;
     return /*#__PURE__*/React.createElement(React.Fragment, {
       key: category
     }, /*#__PURE__*/React.createElement("tr", {

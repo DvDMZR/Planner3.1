@@ -2651,7 +2651,7 @@ function App() {
         const from = weekIdToMonday(projForm.startWeek);
         const to = weekIdToMonday(projForm.ibnWeek);
         const n = Math.round((to - from) / (7 * 86400000)) + 1;
-        return `${formatKW(projForm.startWeek)} – ${formatKW(projForm.ibnWeek)} · ${n} ${n === 1 ? 'Woche' : 'Wochen'}`;
+        return `${formatKW(projForm.startWeek)} – ${formatKW(projForm.ibnWeek)} · ${n} ${n === 1 ? t('projForm.week1') : t('projForm.weeksN')}`;
       } catch (e) {
         return null;
       }
@@ -2689,17 +2689,17 @@ function App() {
     }, /*#__PURE__*/React.createElement("div", {
       className: "bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden"
     }, /*#__PURE__*/React.createElement(ModalHeader, {
-      title: isEditing ? 'Projekt bearbeiten' : 'Neues Projekt',
+      title: isEditing ? t('projForm.editTitle') : t('projForm.newTitle'),
       onClose: cancel
     }), /*#__PURE__*/React.createElement("div", {
       className: "flex-1 overflow-y-auto p-6 space-y-4"
-    }, sectionTitle('Stammdaten'), /*#__PURE__*/React.createElement("div", {
+    }, sectionTitle(t('projForm.secBase')), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-2 gap-4"
     }, /*#__PURE__*/React.createElement("div", {
       className: "col-span-2"
     }, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Name ", /*#__PURE__*/React.createElement("span", {
+    }, t('projForm.name'), " ", /*#__PURE__*/React.createElement("span", {
       className: "text-rose-500"
     }, "*")), /*#__PURE__*/React.createElement("input", {
       type: "text",
@@ -2713,9 +2713,9 @@ function App() {
       autoFocus: true
     }), duplicateName && /*#__PURE__*/React.createElement("p", {
       className: "text-[11px] text-amber-600 mt-1"
-    }, "\u26A0 Ein Projekt mit diesem Namen existiert bereits \u2013 trotzdem m\xF6glich, aber leicht zu verwechseln.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    }, "\u26A0 ", t('projForm.duplicateName'))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Projektnr."), /*#__PURE__*/React.createElement("input", {
+    }, t('projForm.number')), /*#__PURE__*/React.createElement("input", {
       type: "text",
       maxLength: 15,
       value: projForm.projectNumber,
@@ -2727,7 +2727,7 @@ function App() {
       className: `${fieldCls} font-mono`
     })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Kategorie"), /*#__PURE__*/React.createElement("select", {
+    }, t('projForm.category')), /*#__PURE__*/React.createElement("select", {
       value: projForm.category,
       onChange: e => setProjForm({
         ...projForm,
@@ -2739,7 +2739,7 @@ function App() {
       value: c
     }, c)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Typ"), /*#__PURE__*/React.createElement("select", {
+    }, t('projForm.type')), /*#__PURE__*/React.createElement("select", {
       value: projForm.projType || '',
       onChange: e => setProjForm({
         ...projForm,
@@ -2748,12 +2748,12 @@ function App() {
       className: `${fieldCls} bg-white`
     }, /*#__PURE__*/React.createElement("option", {
       value: ""
-    }, "\u2014 kein Typ \u2014"), projTypes.map(t => /*#__PURE__*/React.createElement("option", {
+    }, t('projForm.noType')), projTypes.map(t => /*#__PURE__*/React.createElement("option", {
       key: t,
       value: t
     }, t)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Gr\xF6\xDFe (Size)"), /*#__PURE__*/React.createElement("input", {
+    }, t('projForm.size')), /*#__PURE__*/React.createElement("input", {
       type: "number",
       min: "0",
       step: "1",
@@ -2764,43 +2764,40 @@ function App() {
       }),
       placeholder: "z.B. 5",
       className: fieldCls
-    }))), sectionTitle('Zeitraum'), /*#__PURE__*/React.createElement("div", {
+    }))), sectionTitle(t('projForm.secPeriod')), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-2 gap-4"
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Start (KW)"), /*#__PURE__*/React.createElement("input", {
-      type: "week",
+    }, t('projForm.startWeek')), /*#__PURE__*/React.createElement(WeekPickerInput, {
       value: projForm.startWeek,
-      onChange: e => setProjForm({
+      onChange: w => setProjForm({
         ...projForm,
-        startWeek: e.target.value
-      }),
-      className: fieldCls
+        startWeek: w
+      })
     })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "IBN (KW)"), /*#__PURE__*/React.createElement("input", {
-      type: "week",
+    }, t('projForm.ibnWeek')), /*#__PURE__*/React.createElement(WeekPickerInput, {
       value: projForm.ibnWeek,
-      onChange: e => setProjForm({
+      invalid: weekOrderInvalid,
+      onChange: w => setProjForm({
         ...projForm,
-        ibnWeek: e.target.value
-      }),
-      className: `${fieldCls} ${weekOrderInvalid ? 'border-rose-400 ring-1 ring-rose-300' : ''}`
+        ibnWeek: w
+      })
     })), /*#__PURE__*/React.createElement("div", {
       className: "col-span-2 -mt-2"
     }, weekOrderInvalid ? /*#__PURE__*/React.createElement("p", {
       className: "text-[11px] text-rose-600"
-    }, "IBN-Woche darf nicht vor der Start-Woche liegen.") : weekSpanLabel ? /*#__PURE__*/React.createElement("p", {
+    }, t('projForm.weekOrderError')) : weekSpanLabel ? /*#__PURE__*/React.createElement("p", {
       className: "text-[11px] text-slate-500"
-    }, "Laufzeit: ", /*#__PURE__*/React.createElement("span", {
+    }, t('projForm.duration'), ": ", /*#__PURE__*/React.createElement("span", {
       className: "font-medium text-slate-700"
-    }, weekSpanLabel)) : null)), sectionTitle('Ort'), /*#__PURE__*/React.createElement("div", {
+    }, weekSpanLabel)) : null)), sectionTitle(t('projForm.secLocation')), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-2 gap-4"
     }, /*#__PURE__*/React.createElement("div", {
       className: "col-span-2"
     }, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Adresse"), /*#__PURE__*/React.createElement("input", {
+    }, t('projForm.address')), /*#__PURE__*/React.createElement("input", {
       type: "text",
       value: projForm.address || '',
       onChange: e => setProjForm({
@@ -2813,7 +2810,7 @@ function App() {
       className: "col-span-2"
     }, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Land"), /*#__PURE__*/React.createElement("div", {
+    }, t('projForm.country')), /*#__PURE__*/React.createElement("div", {
       className: "flex gap-2 items-stretch"
     }, /*#__PURE__*/React.createElement("input", {
       type: "text",
@@ -2833,13 +2830,13 @@ function App() {
       }, code);
     })()), /*#__PURE__*/React.createElement("p", {
       className: "text-[11px] text-slate-500 mt-1"
-    }, "Land oder ISO-K\xFCrzel eingeben \u2014 wird auf einen 2-Buchstaben-Code aufgel\xF6st. Erscheint in \xDCbersicht und Projekte."))), sectionTitle('Darstellung & Links'), /*#__PURE__*/React.createElement("div", {
+    }, t('projForm.countryHint')))), sectionTitle(t('projForm.secAppearance')), /*#__PURE__*/React.createElement("div", {
       className: "space-y-4"
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-2 font-semibold"
-    }, "Farbe ", /*#__PURE__*/React.createElement("span", {
+    }, t('projForm.color'), " ", /*#__PURE__*/React.createElement("span", {
       className: "font-normal text-slate-400"
-    }, "(Chips in der Planung)")), /*#__PURE__*/React.createElement("div", {
+    }, "(", t('projForm.colorHint'), ")")), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-wrap gap-2"
     }, PROJECT_COLORS.map(c => /*#__PURE__*/React.createElement("button", {
       key: c.id,
@@ -2851,7 +2848,7 @@ function App() {
       className: `w-7 h-7 rounded-full border-2 transition-all ${c.dot} ${projForm.color === c.id ? 'border-slate-800 scale-110 shadow' : 'border-transparent hover:border-slate-400'}`
     })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "SharePoint / Projektlink"), /*#__PURE__*/React.createElement("input", {
+    }, t('projForm.link')), /*#__PURE__*/React.createElement("input", {
       type: "url",
       value: projForm.sharepointLink || '',
       onChange: e => setProjForm({
@@ -2862,33 +2859,33 @@ function App() {
       className: `${fieldCls} ${linkInvalid ? 'border-rose-400 ring-1 ring-rose-300' : ''}`
     }), linkInvalid && /*#__PURE__*/React.createElement("p", {
       className: "text-[11px] text-rose-600 mt-1"
-    }, "Link muss mit https:// oder http:// beginnen.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    }, t('projForm.linkError'))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Notizen ", /*#__PURE__*/React.createElement("span", {
+    }, t('projForm.notes'), " ", /*#__PURE__*/React.createElement("span", {
       className: "font-normal text-slate-400"
-    }, "(als Tooltip in der Planung sichtbar)")), /*#__PURE__*/React.createElement("textarea", {
+    }, "(", t('projForm.notesHint'), ")")), /*#__PURE__*/React.createElement("textarea", {
       rows: 3,
       value: projForm.notes || '',
       onChange: e => setProjForm({
         ...projForm,
         notes: e.target.value
       }),
-      placeholder: "Interne Hinweise, Besonderheiten \u2026",
+      placeholder: t('projForm.notesPlaceholder'),
       className: `${fieldCls} resize-y`
     })))), /*#__PURE__*/React.createElement("div", {
       className: "p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-2"
     }, nameMissing && /*#__PURE__*/React.createElement("span", {
       className: "text-xs text-slate-400"
-    }, "Name eingeben, um zu speichern"), /*#__PURE__*/React.createElement("div", {
+    }, t('projForm.nameRequired')), /*#__PURE__*/React.createElement("div", {
       className: "flex gap-2 ml-auto"
     }, /*#__PURE__*/React.createElement("button", {
       onClick: cancel,
       className: "bg-white border border-slate-300 text-slate-600 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
-    }, "Abbruch"), /*#__PURE__*/React.createElement("button", {
+    }, t('btn.cancel')), /*#__PURE__*/React.createElement("button", {
       onClick: save,
       disabled: !canSave,
       className: "bg-gea-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-    }, isEditing ? 'Speichern' : 'Projekt erstellen')))));
+    }, isEditing ? t('btn.save') : t('projForm.createBtn'))))));
   };
   const HelpModal = () => /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"

@@ -207,7 +207,9 @@ const OverviewView = ({
     className: "text-3xl font-bold text-gea-700 mt-1"
   }, activeProjects), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-500 mt-1"
-  }, "von ", projects.length, " gesamt (ohne abgeschl.)")), /*#__PURE__*/React.createElement("div", {
+  }, t('overview.ofTotal', {
+    n: projects.length
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "bg-white border border-slate-300 border-l-4 border-l-gea-400 rounded-xl p-5 shadow-md"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-600 font-semibold uppercase tracking-wide"
@@ -215,16 +217,16 @@ const OverviewView = ({
     className: "text-3xl font-bold text-slate-800 mt-1"
   }, activeEmps.length), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-500 mt-1"
-  }, "aktiv")), /*#__PURE__*/React.createElement("div", {
+  }, t('overview.activeLabel'))), /*#__PURE__*/React.createElement("div", {
     className: `bg-white border border-l-4 rounded-xl p-5 shadow-md cursor-pointer hover:shadow-lg transition-shadow ${avgUtil >= 100 ? 'border-rose-300 border-l-rose-500' : avgUtil >= 80 ? 'border-amber-300 border-l-amber-500' : 'border-slate-300 border-l-emerald-500'}`,
     onClick: () => {
       setActiveTab('resource');
       setTimeout(() => scrollToCurrentWeek(resourceScrollRef, timelineWeeks, 140), 120);
     },
-    title: "Zur Ressourcenansicht \u2013 aktuelle KW"
+    title: t('overview.toResource')
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-600 font-semibold uppercase tracking-wide"
-  }, t('overview.avgUtil')), /*#__PURE__*/React.createElement("p", {
+  }, t('overview.avgUtil'), " \u2192"), /*#__PURE__*/React.createElement("p", {
     className: `text-3xl font-bold mt-1 ${avgUtil >= 100 ? 'text-rose-600' : avgUtil >= 80 ? 'text-amber-600' : 'text-emerald-600'}`
   }, avgUtil, "%"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-500 mt-1"
@@ -234,10 +236,10 @@ const OverviewView = ({
       setActiveTab('resource');
       setTimeout(() => scrollToCurrentWeek(resourceScrollRef, timelineWeeks, 140), 120);
     },
-    title: "Zur Ressourcenansicht \u2013 aktuelle KW"
+    title: t('overview.toResource')
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-600 font-semibold uppercase tracking-wide"
-  }, t('overview.overloaded')), /*#__PURE__*/React.createElement("p", {
+  }, t('overview.overloaded'), " \u2192"), /*#__PURE__*/React.createElement("p", {
     className: `text-3xl font-bold mt-1 ${overbookedCount > 0 ? 'text-rose-600' : 'text-slate-800'}`
   }, overbookedCount), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-500 mt-1"
@@ -251,11 +253,11 @@ const OverviewView = ({
     n: rows.length
   })), /*#__PURE__*/React.createElement("span", {
     className: "text-slate-300"
-  }, "|"), /*#__PURE__*/React.createElement("span", null, fmt(totalHoursAll), " h gesamt"), /*#__PURE__*/React.createElement("span", {
+  }, "|"), /*#__PURE__*/React.createElement("span", null, fmt(totalHoursAll), " ", t('overview.hoursTotal')), /*#__PURE__*/React.createElement("span", {
     className: "text-slate-300"
   }, "|"), /*#__PURE__*/React.createElement("span", {
     className: "font-medium text-slate-700"
-  }, fmt(totalGesamtkosten), " \u20AC gesamt"))), /*#__PURE__*/React.createElement("div", {
+  }, fmt(totalGesamtkosten), " ", t('overview.costsTotal')))), /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-xl shadow-md border border-slate-300 overflow-hidden"
   }, /*#__PURE__*/React.createElement("table", {
     className: "w-full text-left text-sm"
@@ -342,8 +344,22 @@ const OverviewView = ({
     }, "\u2013")));
   }))), rows.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     colSpan: 8,
-    className: "text-center text-slate-400 text-sm py-12"
-  }, t('overview.noProjects')))), rows.length > 0 && /*#__PURE__*/React.createElement("tfoot", {
+    className: "p-0"
+  }, /*#__PURE__*/React.createElement(EmptyState, {
+    icon: /*#__PURE__*/React.createElement(IconBriefcase, {
+      size: 32
+    }),
+    title: t('overview.noProjects'),
+    description: t('overview.noProjectsDesc'),
+    action: {
+      label: t('proj.new'),
+      onClick: () => {
+        setActiveTab('setup_proj');
+        setEditingProjectId(null);
+        setIsProjFormOpen(true);
+      }
+    }
+  })))), rows.length > 0 && /*#__PURE__*/React.createElement("tfoot", {
     className: "border-t-2 border-gea-200 bg-gea-50"
   }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     className: "p-4 text-gea-800 font-semibold text-sm",
