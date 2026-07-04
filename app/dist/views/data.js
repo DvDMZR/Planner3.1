@@ -16,6 +16,8 @@ const DataView = ({
     lastBackupAt,
     emailTemplate,
     invoiceRecipient,
+    employees,
+    empAliases,
     t
   } = s;
   const {
@@ -28,7 +30,8 @@ const DataView = ({
     exportData,
     importData,
     showToast,
-    requestConfirm
+    requestConfirm,
+    setEmpAliases
   } = h;
   const isAdmin = currentUser?.role === 'admin';
 
@@ -43,6 +46,33 @@ const DataView = ({
   const [editError, setEditError] = useState('');
   const [editName, setEditName] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // ── Spesen-Import: Namens-Aliase ──
+  const [newAliasName, setNewAliasName] = useState('');
+  const [newAliasEmpId, setNewAliasEmpId] = useState('');
+  const activeEmployees = (employees || []).filter(e => e.active !== false);
+  const aliasEntries = Object.entries(empAliases || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  const addAlias = () => {
+    const norm = normalizeEmpName(newAliasName);
+    if (!norm || !newAliasEmpId) return;
+    setEmpAliases(prev => ({
+      ...prev,
+      [norm]: newAliasEmpId
+    }));
+    setNewAliasName('');
+    setNewAliasEmpId('');
+  };
+  const reassignAlias = (alias, empId) => setEmpAliases(prev => ({
+    ...prev,
+    [alias]: empId
+  }));
+  const removeAlias = alias => setEmpAliases(prev => {
+    const {
+      [alias]: _removed,
+      ...rest
+    } = prev;
+    return rest;
+  });
   if (!currentUser) {
     return /*#__PURE__*/React.createElement("main", {
       className: "flex-1 flex items-center justify-center text-slate-400 text-sm"
@@ -275,6 +305,7 @@ const DataView = ({
       setNewName(e.target.value);
       setNewError('');
     },
+    onKeyDown: e => e.key === 'Enter' && handleAdd(),
     className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400",
     placeholder: "z.B. Max Mustermann"
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
@@ -286,6 +317,7 @@ const DataView = ({
       setNewPin(e.target.value);
       setNewError('');
     },
+    onKeyDown: e => e.key === 'Enter' && handleAdd(),
     className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400",
     placeholder: t('data.pinMinLength')
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
@@ -304,10 +336,67 @@ const DataView = ({
     className: "text-rose-600 text-xs"
   }, newError), /*#__PURE__*/React.createElement("button", {
     onClick: handleAdd,
-    className: "px-4 py-2 bg-gea-600 text-white rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors"
+    disabled: !newName.trim() || newPin.length < 4 || newPin !== newPinConfirm,
+    className: "px-4 py-2 bg-gea-600 text-white rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
   }, t('btn.add')), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-400"
-  }, t('data.newUserRole')))), isAdmin && autoBackup && section(t('data.sectionBackup'), /*#__PURE__*/React.createElement("div", {
+  }, t('data.newUserRole')))), section(t('data.sectionAliases'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "px-4 pt-3 pb-2 text-xs text-slate-500"
+  }, t('data.aliasHint')), aliasEntries.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "px-4 py-5 text-center text-slate-400 text-sm"
+  }, t('data.noAliases')) : /*#__PURE__*/React.createElement("ul", {
+    className: "divide-y divide-slate-100"
+  }, aliasEntries.map(([alias, empId]) => {
+    const known = employees?.some(e => e.id === empId);
+    return /*#__PURE__*/React.createElement("li", {
+      key: alias,
+      className: "px-4 py-2.5 flex items-center gap-3 text-sm"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "flex-1 text-slate-800 font-medium truncate",
+      title: alias
+    }, "\u201E", alias, "\""), /*#__PURE__*/React.createElement("span", {
+      className: "text-slate-400 shrink-0"
+    }, "\u2192"), /*#__PURE__*/React.createElement("select", {
+      value: known ? empId : '',
+      onChange: e => e.target.value && reassignAlias(alias, e.target.value),
+      className: `p-1.5 border rounded text-sm bg-white max-w-52 ${known ? 'border-slate-300 text-slate-700' : 'border-rose-300 text-rose-600'}`
+    }, !known && /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, t('data.aliasOrphan')), activeEmployees.map(e => /*#__PURE__*/React.createElement("option", {
+      key: e.id,
+      value: e.id
+    }, e.name))), /*#__PURE__*/React.createElement("button", {
+      onClick: () => removeAlias(alias),
+      className: "text-rose-500 hover:text-rose-700 p-1 shrink-0",
+      title: t('btn.delete')
+    }, /*#__PURE__*/React.createElement(IconX, {
+      size: 15
+    })));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "p-4 border-t border-slate-200 flex gap-2 flex-wrap items-center bg-slate-50/50"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newAliasName,
+    onChange: e => setNewAliasName(e.target.value),
+    onKeyDown: e => e.key === 'Enter' && addAlias(),
+    placeholder: t('data.aliasPlaceholder'),
+    className: "flex-1 min-w-40 p-2 border border-slate-300 rounded text-sm"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-400 text-sm"
+  }, "\u2192"), /*#__PURE__*/React.createElement("select", {
+    value: newAliasEmpId,
+    onChange: e => setNewAliasEmpId(e.target.value),
+    className: "p-2 border border-slate-300 rounded text-sm bg-white text-slate-600 max-w-52"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, t('expense.selectProfile')), activeEmployees.map(e => /*#__PURE__*/React.createElement("option", {
+    key: e.id,
+    value: e.id
+  }, e.name))), /*#__PURE__*/React.createElement("button", {
+    onClick: addAlias,
+    disabled: !newAliasName.trim() || !newAliasEmpId,
+    className: "bg-gea-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-gea-700 disabled:opacity-40"
+  }, t('btn.add'))))), isAdmin && autoBackup && section(t('data.sectionBackup'), /*#__PURE__*/React.createElement("div", {
     className: "p-4 space-y-3"
   }, /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 text-sm text-slate-700"

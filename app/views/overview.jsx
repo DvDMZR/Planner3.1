@@ -92,24 +92,24 @@ const OverviewView = ({ s, h }) => {
                         <div className="bg-white border border-slate-300 border-l-4 border-l-gea-500 rounded-xl p-5 shadow-md">
                             <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('overview.activeProjects')}</p>
                             <p className="text-3xl font-bold text-gea-700 mt-1">{activeProjects}</p>
-                            <p className="text-xs text-slate-500 mt-1">von {projects.length} gesamt (ohne abgeschl.)</p>
+                            <p className="text-xs text-slate-500 mt-1">{t('overview.ofTotal', { n: projects.length })}</p>
                         </div>
                         <div className="bg-white border border-slate-300 border-l-4 border-l-gea-400 rounded-xl p-5 shadow-md">
                             <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('overview.employees')}</p>
                             <p className="text-3xl font-bold text-slate-800 mt-1">{activeEmps.length}</p>
-                            <p className="text-xs text-slate-500 mt-1">aktiv</p>
+                            <p className="text-xs text-slate-500 mt-1">{t('overview.activeLabel')}</p>
                         </div>
                         <div className={`bg-white border border-l-4 rounded-xl p-5 shadow-md cursor-pointer hover:shadow-lg transition-shadow ${avgUtil >= 100 ? 'border-rose-300 border-l-rose-500' : avgUtil >= 80 ? 'border-amber-300 border-l-amber-500' : 'border-slate-300 border-l-emerald-500'}`}
                             onClick={() => { setActiveTab('resource'); setTimeout(() => scrollToCurrentWeek(resourceScrollRef, timelineWeeks, 140), 120); }}
-                            title="Zur Ressourcenansicht – aktuelle KW">
-                            <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('overview.avgUtil')}</p>
+                            title={t('overview.toResource')}>
+                            <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('overview.avgUtil')} →</p>
                             <p className={`text-3xl font-bold mt-1 ${avgUtil >= 100 ? 'text-rose-600' : avgUtil >= 80 ? 'text-amber-600' : 'text-emerald-600'}`}>{avgUtil}%</p>
                             <p className="text-xs text-slate-500 mt-1">{currentWeekStr}</p>
                         </div>
                         <div className={`bg-white border border-l-4 rounded-xl p-5 shadow-md cursor-pointer hover:shadow-lg transition-shadow ${overbookedCount > 0 ? 'border-rose-300 border-l-rose-500' : 'border-slate-300 border-l-slate-400'}`}
                             onClick={() => { setActiveTab('resource'); setTimeout(() => scrollToCurrentWeek(resourceScrollRef, timelineWeeks, 140), 120); }}
-                            title="Zur Ressourcenansicht – aktuelle KW">
-                            <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('overview.overloaded')}</p>
+                            title={t('overview.toResource')}>
+                            <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('overview.overloaded')} →</p>
                             <p className={`text-3xl font-bold mt-1 ${overbookedCount > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{overbookedCount}</p>
                             <p className="text-xs text-slate-500 mt-1">{overbookedCount > 0 ? t('overview.overloadedCount') : t('overview.allOk')}</p>
                         </div>
@@ -119,9 +119,9 @@ const OverviewView = ({ s, h }) => {
                         <div className="flex items-center gap-4 text-sm text-slate-500">
                             <span>{t('overview.projects', { n: rows.length })}</span>
                             <span className="text-slate-300">|</span>
-                            <span>{fmt(totalHoursAll)} h gesamt</span>
+                            <span>{fmt(totalHoursAll)} {t('overview.hoursTotal')}</span>
                             <span className="text-slate-300">|</span>
-                            <span className="font-medium text-slate-700">{fmt(totalGesamtkosten)} € gesamt</span>
+                            <span className="font-medium text-slate-700">{fmt(totalGesamtkosten)} {t('overview.costsTotal')}</span>
                         </div>
                     </div>
                     <div className="bg-white rounded-xl shadow-md border border-slate-300 overflow-hidden">
@@ -179,7 +179,14 @@ const OverviewView = ({ s, h }) => {
                                     </React.Fragment>
                                 ))}
                                 {rows.length === 0 && (
-                                    <tr><td colSpan={8} className="text-center text-slate-400 text-sm py-12">{t('overview.noProjects')}</td></tr>
+                                    <tr><td colSpan={8} className="p-0">
+                                        <EmptyState
+                                            icon={<IconBriefcase size={32}/>}
+                                            title={t('overview.noProjects')}
+                                            description={t('overview.noProjectsDesc')}
+                                            action={{ label: t('proj.new'), onClick: () => { setActiveTab('setup_proj'); setEditingProjectId(null); setIsProjFormOpen(true); } }}
+                                        />
+                                    </td></tr>
                                 )}
                             </tbody>
                             {rows.length > 0 && (

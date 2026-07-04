@@ -5,6 +5,7 @@ const SetupCatsView = ({ s, h }) => {
         inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks,
         inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks,
         expandedSetupCats, newEmpCat, newProjCat, newBasicTask, newOfftimeTask,
+        expenseCategories,
         t,
     } = s;
     const {
@@ -12,6 +13,7 @@ const SetupCatsView = ({ s, h }) => {
         setInactiveBasicTasks, setOfftimeTasks, setInactiveOfftimeTasks,
         setInactiveSupportTasks, setInactiveTrainingTasks, setCustomTrainingTasks,
         setExpandedSetupCats, setNewEmpCat, setNewProjCat, setNewBasicTask, setNewOfftimeTask,
+        setExpenseCategories,
     } = h;
 
     const [newTrainingTask, setNewTrainingTask] = useState('');
@@ -50,6 +52,49 @@ const SetupCatsView = ({ s, h }) => {
         setEmpCategories([...empCategories, v]);
         setNewEmpCat('');
     };
+
+    // ── Spesen-Kategorien (Import-Keyword-Mapping) ──────────────────────────
+    // Es wird immer die normalisierte VOLLE Liste persistiert (inkl. Built-ins
+    // mit ggf. geänderten Labels/Keywords), damit die Match-Reihenfolge und
+    // alle Edits deterministisch aus category-defs.json reproduzierbar sind.
+    const expCats = normalizeExpenseCategories(expenseCategories);
+    const updateExpCats = (mutator) =>
+        setExpenseCategories(mutator(normalizeExpenseCategories(expenseCategories)));
+    const [expKeywordInputs, setExpKeywordInputs] = useState({});   // { catId: text }
+    const [expEditingId, setExpEditingId] = useState(null);
+    const [expEditLabel, setExpEditLabel] = useState('');
+    const [newExpCatLabel, setNewExpCatLabel] = useState('');
+    const [newExpCatType, setNewExpCatType] = useState('other');
+    const EXP_BUCKETS = ['travel', 'accommodation', 'meals', 'other'];
+
+    const addExpKeyword = (catId) => {
+        const kw = (expKeywordInputs[catId] || '').trim().toLowerCase();
+        if (!kw) return;
+        updateExpCats(cats => cats.map(c =>
+            c.id === catId && !c.keywords.includes(kw) ? { ...c, keywords: [...c.keywords, kw] } : c));
+        setExpKeywordInputs(prev => ({ ...prev, [catId]: '' }));
+    };
+    const removeExpKeyword = (catId, kw) =>
+        updateExpCats(cats => cats.map(c =>
+            c.id === catId ? { ...c, keywords: c.keywords.filter(k => k !== kw) } : c));
+    const saveExpLabel = (catId) => {
+        const label = expEditLabel.trim();
+        if (label) updateExpCats(cats => cats.map(c => c.id === catId ? { ...c, label } : c));
+        setExpEditingId(null);
+    };
+    const addExpCategory = () => {
+        const label = newExpCatLabel.trim();
+        if (!label || expCats.some(c => c.label.toLowerCase() === label.toLowerCase())) return;
+        const cat = { id: makeId('exp'), label, lineType: newExpCatType, keywords: [], builtin: false };
+        // Vor dem Fallback 'other' einfügen, damit die Keywords greifen
+        updateExpCats(cats => [...cats.filter(c => c.id !== 'other'), cat,
+                               ...cats.filter(c => c.id === 'other')]);
+        setNewExpCatLabel('');
+    };
+    const removeExpCategory = (catId) =>
+        updateExpCats(cats => cats.filter(c => c.id !== catId));
+    const setExpBucket = (catId, lineType) =>
+        updateExpCats(cats => cats.map(c => c.id === catId ? { ...c, lineType } : c));
 
     const addOtherTask = () => {
         const t = newOtherTask.trim();
@@ -106,12 +151,30 @@ const SetupCatsView = ({ s, h }) => {
         + (inactiveSupportTasks||[]).length
         + (inactiveTrainingTasks||[]).length;
 
-    const section = (key, title, children) => (
+    // Sektion mit optionalem Eintrags-Zähler und Kurzbeschreibung – der Nutzer
+    // sieht auf einen Blick, was drinsteckt, ohne jede Sektion aufzuklappen.
+    const section = (key, title, optsOrChildren, maybeChildren) => {
+        // Flexible Signatur: section(key, title, children) ODER
+        // section(key, title, { count, hint }, children)
+        const hasOpts = maybeChildren !== undefined;
+        const { count, hint } = hasOpts ? optsOrChildren : {};
+        const children = hasOpts ? maybeChildren : optsOrChildren;
+        return sectionInner(key, title, count, hint, children);
+    };
+    const sectionInner = (key, title, count, hint, children) => (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <button onClick={() => setExpandedSetupCats(prev => ({...prev, [key]: !prev[key]}))}
-                className="w-full p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center hover:bg-slate-100 transition-colors">
-                <h2 className="text-lg text-slate-900 font-medium">{title}</h2>
-                <span className="text-slate-500">{expandedSetupCats[key] ? <IconChevronDown size={20}/> : <IconChevronRight size={20}/>}</span>
+                className="w-full p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center gap-4 hover:bg-slate-100 transition-colors text-left">
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg text-slate-900 font-medium">{title}</h2>
+                        {count != null && (
+                            <span className="bg-slate-200 text-slate-600 text-xs font-semibold px-2 py-0.5 rounded-full">{count}</span>
+                        )}
+                    </div>
+                    {hint && <p className="text-xs text-slate-400 mt-0.5 truncate">{hint}</p>}
+                </div>
+                <span className="text-slate-500 shrink-0">{expandedSetupCats[key] ? <IconChevronDown size={20}/> : <IconChevronRight size={20}/>}</span>
             </button>
             {expandedSetupCats[key] && children}
         </div>
@@ -122,7 +185,7 @@ const SetupCatsView = ({ s, h }) => {
             <div className="max-w-4xl mx-auto space-y-6">
 
                 {/* ── Basic Tasks ─────────────────────────────────────── */}
-                {section('basic', 'Basic Tasks', (
+                {section('basic', 'Basic Tasks', { count: hardcodedBasicTasks.length, hint: 'Fest eingebaute Standard-Tasks (z. B. Office) – immer aktiv.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newBasicTask}
@@ -156,7 +219,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Other Tasks (user-created) ──────────────────────── */}
-                {section('other', 'Other Tasks', (
+                {section('other', 'Other Tasks', { count: otherTasks.length, hint: 'Selbst erstellte Tasks – erscheinen in der Planung unter „Other".' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newOtherTask}
@@ -212,7 +275,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Support Tasks ───────────────────────────────────── */}
-                {section('support', 'Support', (
+                {section('support', 'Support', { count: activeSupportTasks.length, hint: 'Support-Einsatzarten (24/7, CRM) mit fester Farbkennung.' }, (
                     <ul className="divide-y divide-slate-200">
                         {activeSupportTasks.map(task => {
                             const sc = SUPPORT_CHIP_COLORS[task] || {};
@@ -236,7 +299,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Training Tasks ──────────────────────────────────── */}
-                {section('training', 'Trainings', (
+                {section('training', 'Trainings', { count: activeTrainingTasks.length + activeCustomTraining.length, hint: 'Standard- und eigene Trainings für den Planungsdialog.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newTrainingTask}
@@ -284,7 +347,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Abwesenheiten ───────────────────────────────────── */}
-                {section('offtime', t('cats.section.absences'), (
+                {section('offtime', t('cats.section.absences'), { count: activeOfftimeTasks.length, hint: 'Urlaub, Krankheit, Gleitzeit usw. – blockieren Kapazität.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newOfftimeTask}
@@ -318,7 +381,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Mitarbeiter-Kategorien ──────────────────────────── */}
-                {section('empCats', t('cats.section.empCats'), (
+                {section('empCats', t('cats.section.empCats'), { count: empCategories.length, hint: 'Teams – gruppieren Mitarbeiter in allen Planungsansichten.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newEmpCat}
@@ -347,7 +410,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Projekt-Kategorien ──────────────────────────────── */}
-                {section('projCats', t('cats.section.projCats'), (
+                {section('projCats', t('cats.section.projCats'), { count: projCategories.length, hint: 'Gruppieren Projekte in Übersicht und Verwaltung.' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newProjCat}
@@ -374,7 +437,7 @@ const SetupCatsView = ({ s, h }) => {
                 ))}
 
                 {/* ── Projekt-Typen ──────────────────────────────────── */}
-                {section('projTypes', 'Projekt-Typen', (
+                {section('projTypes', 'Projekt-Typen', { count: (projTypes||[]).length, hint: 'Anlagentyp im Projekt-Formular und im Projektlabel (z. B. MW).' }, (
                     <div>
                         <div className="p-4 flex gap-2 border-b border-slate-200">
                             <input type="text" value={newProjType}
@@ -397,6 +460,84 @@ const SetupCatsView = ({ s, h }) => {
                             ))}
                             {(projTypes||[]).length === 0 && <li className="p-6 text-sm text-slate-400 text-center">Noch keine Projekttypen definiert.</li>}
                         </ul>
+                    </div>
+                ))}
+
+                {/* ── Spesen-Kategorien (Import) ──────────────────────── */}
+                {section('expenseCats', t('cats.section.expense'), { count: expCats.length, hint: 'Keyword-Zuordnung für den Spesen-Import – umbenenn- und erweiterbar.' }, (
+                    <div>
+                        <p className="px-4 pt-3 pb-2 text-xs text-slate-500">{t('cats.expenseHint')}</p>
+                        <ul className="divide-y divide-slate-100">
+                            {expCats.map(cat => {
+                                const cfg = COST_LINE_TYPES[cat.lineType] || COST_LINE_TYPES.other;
+                                const isFallback = cat.id === 'other';
+                                return (
+                                    <li key={cat.id} className="px-4 py-3 space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${cfg.chip}`}>{cfg.invoiceLabel}</span>
+                                            {expEditingId === cat.id ? (
+                                                <input type="text" value={expEditLabel} autoFocus
+                                                    onChange={e => setExpEditLabel(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') saveExpLabel(cat.id); if (e.key === 'Escape') setExpEditingId(null); }}
+                                                    onBlur={() => saveExpLabel(cat.id)}
+                                                    className="p-1.5 border border-slate-400 rounded text-sm font-medium"/>
+                                            ) : (
+                                                <span className="text-sm font-medium text-slate-800">{cat.label}</span>
+                                            )}
+                                            {isFallback && <span className="text-xs text-slate-400">({t('cats.expenseFallback')})</span>}
+                                            {!cat.builtin && (
+                                                <select value={cat.lineType} onChange={e => setExpBucket(cat.id, e.target.value)}
+                                                    title={t('cats.expenseBucket')}
+                                                    className="text-xs p-1 border border-slate-300 rounded bg-white text-slate-600">
+                                                    {EXP_BUCKETS.map(b => <option key={b} value={b}>{t('cats.expenseBucket')}: {COST_LINE_TYPES[b].invoiceLabel}</option>)}
+                                                </select>
+                                            )}
+                                            <div className="ml-auto flex items-center gap-1 shrink-0">
+                                                <button onClick={() => { setExpEditingId(cat.id); setExpEditLabel(cat.label); }}
+                                                    className="px-2 py-1 text-xs rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700">{t('btn.edit')}</button>
+                                                {!cat.builtin && (
+                                                    <button onClick={() => removeExpCategory(cat.id)}
+                                                        className="text-rose-500 hover:text-rose-700 p-1"><IconX size={15}/></button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {!isFallback && (
+                                            <div className="flex flex-wrap items-center gap-1.5 pl-1">
+                                                {cat.keywords.map(kw => (
+                                                    <span key={kw} className="inline-flex items-center gap-1 text-xs bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
+                                                        {kw}
+                                                        <button onClick={() => removeExpKeyword(cat.id, kw)}
+                                                            className="text-slate-400 hover:text-rose-600 leading-none">×</button>
+                                                    </span>
+                                                ))}
+                                                <input type="text" value={expKeywordInputs[cat.id] || ''}
+                                                    onChange={e => setExpKeywordInputs(prev => ({ ...prev, [cat.id]: e.target.value }))}
+                                                    onKeyDown={e => e.key === 'Enter' && addExpKeyword(cat.id)}
+                                                    placeholder={t('cats.expenseNewKeyword')}
+                                                    className="text-xs p-1.5 border border-dashed border-slate-300 rounded-full w-36 focus:border-gea-400 focus:outline-none"/>
+                                                <button onClick={() => addExpKeyword(cat.id)}
+                                                    className="text-xs text-gea-600 font-medium hover:text-gea-700">{t('btn.add')}</button>
+                                            </div>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                        <div className="p-4 border-t border-slate-200 flex gap-2 flex-wrap items-center bg-slate-50/50">
+                            <input type="text" value={newExpCatLabel}
+                                onChange={e => setNewExpCatLabel(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addExpCategory()}
+                                placeholder={t('cats.expenseNewCat')}
+                                className="flex-1 min-w-40 p-2 border border-slate-300 rounded text-sm"/>
+                            <select value={newExpCatType} onChange={e => setNewExpCatType(e.target.value)}
+                                className="p-2 border border-slate-300 rounded text-sm bg-white text-slate-600">
+                                {EXP_BUCKETS.map(b => <option key={b} value={b}>{t('cats.expenseBucket')}: {COST_LINE_TYPES[b].invoiceLabel}</option>)}
+                            </select>
+                            <button onClick={addExpCategory}
+                                className="bg-gea-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-gea-700">
+                                {t('btn.add')}
+                            </button>
+                        </div>
                     </div>
                 ))}
 

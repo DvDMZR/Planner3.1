@@ -70,6 +70,7 @@ const ProjectDetailsView = ({
     timelineScrollRef,
     empAliases,
     fxRates,
+    expenseCategories,
     language,
     t
   } = s;
@@ -191,6 +192,8 @@ const ProjectDetailsView = ({
     className: "p-5 border-b border-slate-300 bg-white flex items-center gap-4 flex-wrap shadow-sm"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setSelectedProjectDetails(null),
+    title: t('projDetail.backToList'),
+    "aria-label": t('projDetail.backToList'),
     className: "p-2 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors flex-shrink-0"
   }, /*#__PURE__*/React.createElement(IconArrowLeft, {
     size: 20
@@ -355,9 +358,20 @@ const ProjectDetailsView = ({
     className: "text-gea-600 text-sm font-medium hover:text-gea-700 flex items-center gap-1"
   }, /*#__PURE__*/React.createElement(IconPlus, {
     size: 15
-  }), " ", t('btn.add'))), projCostItems.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "p-10 text-center text-slate-400 text-sm"
-  }, t('projDetail.noCostItems')) : /*#__PURE__*/React.createElement("table", {
+  }), " ", t('btn.add'))), projCostItems.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+    icon: /*#__PURE__*/React.createElement(IconFileText, {
+      size: 28
+    }),
+    title: t('projDetail.noCostItems'),
+    description: t('projDetail.noCostItemsDesc'),
+    action: {
+      label: t('projDetail.costItem'),
+      onClick: () => {
+        setEditingCostItem(null);
+        setIsCostItemModalOpen(true);
+      }
+    }
+  }) : /*#__PURE__*/React.createElement("table", {
     className: "w-full text-left text-sm"
   }, /*#__PURE__*/React.createElement("thead", {
     className: "bg-slate-50 border-b border-slate-200"
@@ -530,6 +544,7 @@ const ProjectDetailsView = ({
     setEmpAliases: setEmpAliases,
     fxRates: fxRates,
     setFxRates: setFxRates,
+    expenseCategories: expenseCategories,
     showToast: showToast,
     onClose: () => setIsExpenseImportOpen(false),
     t: t

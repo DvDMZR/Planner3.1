@@ -323,12 +323,12 @@ const SetupProjView = ({
   }), /*#__PURE__*/React.createElement(SortTh, {
     cat: cat,
     col: "type",
-    label: "Typ",
+    label: t('proj.colType'),
     className: "w-28"
   }), /*#__PURE__*/React.createElement(SortTh, {
     cat: cat,
     col: "size",
-    label: "Size",
+    label: t('proj.colSize'),
     className: "w-16"
   }), /*#__PURE__*/React.createElement(SortTh, {
     cat: cat,
@@ -369,7 +369,7 @@ const SetupProjView = ({
     type: "text",
     value: searchQuery,
     onChange: e => setSearchQuery(e.target.value),
-    placeholder: "Suche nach Name, Typ, Land \u2026",
+    placeholder: t('proj.searchPlaceholder'),
     className: "w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 bg-slate-50"
   }), searchQuery && /*#__PURE__*/React.createElement("button", {
     onClick: () => setSearchQuery(''),
@@ -407,13 +407,36 @@ const SetupProjView = ({
       size: 32
     }),
     title: t('proj.noActive'),
-    description: t('proj.noActiveDesc')
+    description: t('proj.noActiveDesc'),
+    action: {
+      label: t('proj.new'),
+      onClick: () => {
+        setEditingProjectId(null);
+        setProjForm({
+          name: '',
+          category: projCategories[0] || '',
+          projectNumber: '',
+          address: '',
+          country: '',
+          startWeek: weeks[0]?.id || '',
+          ibnWeek: weeks[10]?.id || '',
+          color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id,
+          projType: '',
+          size: '',
+          sharepointLink: '',
+          notes: ''
+        });
+        setIsProjFormOpen(true);
+      }
+    }
   }), q && activeProjects.length === 0 && pastProjects.length === 0 && /*#__PURE__*/React.createElement(EmptyState, {
     icon: /*#__PURE__*/React.createElement(IconSearch, {
       size: 32
     }),
-    title: "Keine Treffer",
-    description: `Kein Projekt passt zu „${searchQuery}".`
+    title: t('proj.noResults'),
+    description: t('proj.noResultsFor', {
+      q: searchQuery
+    })
   }), activeCats.map(cat => {
     const catProjs = sortProjects(activeProjects.filter(p => p.category === cat), cat);
     const isCollapsed = collapsedProjCategories[cat];

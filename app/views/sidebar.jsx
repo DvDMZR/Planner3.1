@@ -77,6 +77,18 @@ const _SidebarBase = ({ s, h }) => {
         </button>
     );
 
+    // DE/EN-Umschalter – identisch für ein-/ausgeloggten Zustand
+    const langSwitcher = (
+        <div className="flex items-center gap-0.5 shrink-0">
+            {['de', 'en'].map(lng => (
+                <button key={lng} onClick={() => setLanguage(lng)}
+                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors ${language === lng ? 'bg-gea-600 text-white' : 'text-gea-500 hover:text-gea-300'}`}>
+                    {lng.toUpperCase()}
+                </button>
+            ))}
+        </div>
+    );
+
     return (
         <aside className="w-60 bg-gea-900 text-gea-100 flex flex-col h-full shrink-0 shadow-xl">
             <div className="px-6 py-5 flex items-center gap-3 border-b border-gea-700">
@@ -151,17 +163,7 @@ const _SidebarBase = ({ s, h }) => {
                             <span className="text-gea-200 text-xs font-medium truncate block">{currentUser.name}</span>
                             <span className="text-gea-500 text-xs">{isAdmin ? t('auth.administrator') : t('auth.activeUser')}</span>
                         </div>
-                        <div className="flex items-center gap-0.5 shrink-0">
-                            {['de', 'en'].map(lng => (
-                                <button
-                                    key={lng}
-                                    onClick={() => setLanguage(lng)}
-                                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors ${language === lng ? 'bg-gea-600 text-white' : 'text-gea-500 hover:text-gea-300'}`}
-                                >
-                                    {lng.toUpperCase()}
-                                </button>
-                            ))}
-                        </div>
+                        {langSwitcher}
                         <Tooltip text={t('auth.logout')} side="top">
                             <button
                                 onClick={() => requestConfirm({
@@ -184,14 +186,7 @@ const _SidebarBase = ({ s, h }) => {
                         >
                             <IconLogIn size={15}/> {t('auth.login')}
                         </button>
-                        <div className="flex items-center gap-0.5 shrink-0">
-                            {['de', 'en'].map(lng => (
-                                <button key={lng} onClick={() => setLanguage(lng)}
-                                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors ${language === lng ? 'bg-gea-600 text-white' : 'text-gea-500 hover:text-gea-300'}`}>
-                                    {lng.toUpperCase()}
-                                </button>
-                            ))}
-                        </div>
+                        {langSwitcher}
                     </div>
                 )}
             </div>

@@ -147,8 +147,8 @@ const SetupProjView = ({ s, h }) => {
             <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                     <SortTh cat={cat} col="name"    label={t('proj.colName')}     className="max-w-[200px]"/>
-                    <SortTh cat={cat} col="type"    label="Typ"                   className="w-28"/>
-                    <SortTh cat={cat} col="size"    label="Size"                  className="w-16"/>
+                    <SortTh cat={cat} col="type"    label={t('proj.colType')}     className="w-28"/>
+                    <SortTh cat={cat} col="size"    label={t('proj.colSize')}     className="w-16"/>
                     <SortTh cat={cat} col="country" label={t('proj.colCountry')}  className="w-24"/>
                     <SortTh cat={cat} col="status"  label={t('proj.colStatus')}   className="w-32"/>
                     <SortTh cat={cat} col="period"  label={t('proj.colPeriod')}   className="w-36"/>
@@ -171,7 +171,7 @@ const SetupProjView = ({ s, h }) => {
                                         type="text"
                                         value={searchQuery}
                                         onChange={e => setSearchQuery(e.target.value)}
-                                        placeholder="Suche nach Name, Typ, Land …"
+                                        placeholder={t('proj.searchPlaceholder')}
                                         className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 bg-slate-50"
                                     />
                                     {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><IconX size={14}/></button>}
@@ -199,10 +199,15 @@ const SetupProjView = ({ s, h }) => {
                                 icon={<IconBriefcase size={32}/>}
                                 title={t('proj.noActive')}
                                 description={t('proj.noActiveDesc')}
+                                action={{ label: t('proj.new'), onClick: () => {
+                                    setEditingProjectId(null);
+                                    setProjForm({ name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id, projType: '', size: '', sharepointLink: '', notes: '' });
+                                    setIsProjFormOpen(true);
+                                } }}
                             />
                         )}
                         {q && activeProjects.length === 0 && pastProjects.length === 0 && (
-                            <EmptyState icon={<IconSearch size={32}/>} title="Keine Treffer" description={`Kein Projekt passt zu „${searchQuery}".`}/>
+                            <EmptyState icon={<IconSearch size={32}/>} title={t('proj.noResults')} description={t('proj.noResultsFor', { q: searchQuery })}/>
                         )}
                         {activeCats.map(cat => {
                             const catProjs = sortProjects(activeProjects.filter(p => p.category === cat), cat);

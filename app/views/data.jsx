@@ -5,9 +5,10 @@
 const DataView = ({ s, h }) => {
     const { useState } = React;
     const { currentUser, appUsers, autoBackup, lastBackupAt, emailTemplate,
-            invoiceRecipient, t } = s;
+            invoiceRecipient, employees, empAliases, t } = s;
     const { setAppUsers, loginUser, setAutoBackup, runBackup, setEmailTemplate,
-            setInvoiceRecipient, exportData, importData, showToast, requestConfirm } = h;
+            setInvoiceRecipient, exportData, importData, showToast, requestConfirm,
+            setEmpAliases } = h;
 
     const isAdmin = currentUser?.role === 'admin';
 
@@ -22,6 +23,25 @@ const DataView = ({ s, h }) => {
     const [editError, setEditError] = useState('');
     const [editName, setEditName] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
+
+    // ── Spesen-Import: Namens-Aliase ──
+    const [newAliasName, setNewAliasName] = useState('');
+    const [newAliasEmpId, setNewAliasEmpId] = useState('');
+    const activeEmployees = (employees || []).filter(e => e.active !== false);
+    const aliasEntries = Object.entries(empAliases || {}).sort((a, b) => a[0].localeCompare(b[0]));
+    const addAlias = () => {
+        const norm = normalizeEmpName(newAliasName);
+        if (!norm || !newAliasEmpId) return;
+        setEmpAliases(prev => ({ ...prev, [norm]: newAliasEmpId }));
+        setNewAliasName(''); setNewAliasEmpId('');
+    };
+    const reassignAlias = (alias, empId) =>
+        setEmpAliases(prev => ({ ...prev, [alias]: empId }));
+    const removeAlias = (alias) =>
+        setEmpAliases(prev => {
+            const { [alias]: _removed, ...rest } = prev;
+            return rest;
+        });
 
     if (!currentUser) {
         return (
@@ -214,6 +234,7 @@ const DataView = ({ s, h }) => {
                                 <label className="block text-xs font-semibold text-slate-600 mb-1">{t('data.fieldName')}</label>
                                 <input type="text" value={newName}
                                     onChange={e => { setNewName(e.target.value); setNewError(''); }}
+                                    onKeyDown={e => e.key === 'Enter' && handleAdd()}
                                     className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400"
                                     placeholder="z.B. Max Mustermann"/>
                             </div>
@@ -221,6 +242,7 @@ const DataView = ({ s, h }) => {
                                 <label className="block text-xs font-semibold text-slate-600 mb-1">{t('data.fieldNewPin')}</label>
                                 <input type="password" value={newPin}
                                     onChange={e => { setNewPin(e.target.value); setNewError(''); }}
+                                    onKeyDown={e => e.key === 'Enter' && handleAdd()}
                                     className="w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400"
                                     placeholder={t('data.pinMinLength')}/>
                             </div>
@@ -235,10 +257,60 @@ const DataView = ({ s, h }) => {
                         </div>
                         {newError && <p className="text-rose-600 text-xs">{newError}</p>}
                         <button onClick={handleAdd}
-                            className="px-4 py-2 bg-gea-600 text-white rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors">
+                            disabled={!newName.trim() || newPin.length < 4 || newPin !== newPinConfirm}
+                            className="px-4 py-2 bg-gea-600 text-white rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                             {t('btn.add')}
                         </button>
                         <p className="text-xs text-slate-400">{t('data.newUserRole')}</p>
+                    </div>
+                ))}
+
+                {/* ── Spesen-Import: Namens-Aliase ─────────────────────── */}
+                {section(t('data.sectionAliases'), (
+                    <div>
+                        <p className="px-4 pt-3 pb-2 text-xs text-slate-500">{t('data.aliasHint')}</p>
+                        {aliasEntries.length === 0 ? (
+                            <div className="px-4 py-5 text-center text-slate-400 text-sm">{t('data.noAliases')}</div>
+                        ) : (
+                            <ul className="divide-y divide-slate-100">
+                                {aliasEntries.map(([alias, empId]) => {
+                                    const known = employees?.some(e => e.id === empId);
+                                    return (
+                                        <li key={alias} className="px-4 py-2.5 flex items-center gap-3 text-sm">
+                                            <span className="flex-1 text-slate-800 font-medium truncate" title={alias}>„{alias}"</span>
+                                            <span className="text-slate-400 shrink-0">→</span>
+                                            <select value={known ? empId : ''}
+                                                onChange={e => e.target.value && reassignAlias(alias, e.target.value)}
+                                                className={`p-1.5 border rounded text-sm bg-white max-w-52 ${known ? 'border-slate-300 text-slate-700' : 'border-rose-300 text-rose-600'}`}>
+                                                {!known && <option value="">{t('data.aliasOrphan')}</option>}
+                                                {activeEmployees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                            </select>
+                                            <button onClick={() => removeAlias(alias)}
+                                                className="text-rose-500 hover:text-rose-700 p-1 shrink-0" title={t('btn.delete')}>
+                                                <IconX size={15}/>
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                        <div className="p-4 border-t border-slate-200 flex gap-2 flex-wrap items-center bg-slate-50/50">
+                            <input type="text" value={newAliasName}
+                                onChange={e => setNewAliasName(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addAlias()}
+                                placeholder={t('data.aliasPlaceholder')}
+                                className="flex-1 min-w-40 p-2 border border-slate-300 rounded text-sm"/>
+                            <span className="text-slate-400 text-sm">→</span>
+                            <select value={newAliasEmpId} onChange={e => setNewAliasEmpId(e.target.value)}
+                                className="p-2 border border-slate-300 rounded text-sm bg-white text-slate-600 max-w-52">
+                                <option value="">{t('expense.selectProfile')}</option>
+                                {activeEmployees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                            </select>
+                            <button onClick={addAlias} disabled={!newAliasName.trim() || !newAliasEmpId}
+                                className="bg-gea-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-gea-700 disabled:opacity-40">
+                                {t('btn.add')}
+                            </button>
+                        </div>
                     </div>
                 ))}
 

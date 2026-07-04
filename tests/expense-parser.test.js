@@ -11,7 +11,8 @@ const EXPORTS = [
     'parseExpenseReport', 'categorizeExpenseType', 'parseGermanAmount',
     'parseAmountWithCurrency', 'parseExpenseDate', 'resolveCurrencyName',
     'convertToEur', 'DEFAULT_FX_RATES', 'normalizeEmpName',
-    'findEmployeeForExpense',
+    'findEmployeeForExpense', 'suggestEmployeeForExpense',
+    'normalizeExpenseCategories', 'DEFAULT_EXPENSE_CATEGORIES',
 ];
 const source = [read('config.js'), read('utils.js'), read('expense-parser.js')].join('\n;\n');
 // eslint-disable-next-line no-new-func
@@ -343,6 +344,59 @@ test('normalizeEmpName: Diakritika, Casing, Whitespace', () => {
     assert.equal(app.normalizeEmpName('Jakub Mechliński'), 'jakub mechlinski');
     assert.equal(app.normalizeEmpName('  MÜLLER,  Hans '), 'muller, hans');
     assert.equal(app.normalizeEmpName('Großer'), 'grosser');
+});
+
+test('normalizeExpenseCategories: Defaults, Overrides, Customs, Fallback-Position', () => {
+    // null → Defaults (4 Built-ins, 'other' zuletzt)
+    const defs = app.normalizeExpenseCategories(null);
+    assert.equal(defs.length, 4);
+    assert.equal(defs[defs.length - 1].id, 'other');
+
+    const custom = app.normalizeExpenseCategories([
+        { id: 'travel', label: 'Fahrtkosten', keywords: ['shuttle'] },       // Built-in umbenannt + eigene Keywords
+        { id: 'exp-1', label: 'Schulung', lineType: 'other', keywords: ['seminar'] }, // Custom
+        { id: 'exp-2', label: 'Kaputt', lineType: 'hours', keywords: [] },   // ungültiger lineType → other
+        { id: 'other', label: 'Rest' },
+        'müll', { keywords: [] },                                            // kaputte Einträge → verworfen
+    ]);
+    const travel = custom.find(c => c.id === 'travel');
+    assert.equal(travel.label, 'Fahrtkosten');
+    assert.deepEqual(travel.keywords, ['shuttle']);
+    assert.equal(travel.lineType, 'travel'); // Built-in-Bucket nicht überschreibbar
+    assert.equal(custom.find(c => c.id === 'exp-1').lineType, 'other');
+    assert.equal(custom.find(c => c.id === 'exp-2').lineType, 'other');
+    assert.equal(custom.find(c => c.id === 'other').label, 'Rest');
+    // Fehlende Built-ins (accommodation, meals) wurden ergänzt
+    assert.ok(custom.some(c => c.id === 'accommodation'));
+    assert.ok(custom.some(c => c.id === 'meals'));
+    // Fallback bleibt am Ende
+    assert.equal(custom[custom.length - 1].id, 'other');
+});
+
+test('categorizeExpenseType: konfigurierte Keywords und Custom-Kategorien greifen', () => {
+    const config = [
+        { id: 'travel', label: 'Fahrtkosten', keywords: ['shuttle'] },
+        { id: 'exp-1', label: 'Schulung', lineType: 'other', keywords: ['seminar', 'training'] },
+    ];
+    assert.equal(app.categorizeExpenseType('Shuttle Flughafen', config), 'travel');
+    assert.equal(app.categorizeExpenseType('Seminar XY', config), 'exp-1');
+    // Default-Keywords der übrigen Built-ins bleiben aktiv
+    assert.equal(app.categorizeExpenseType('Hotel', config), 'accommodation');
+    // travel-Keywords wurden ERSETZT: 'Benzin' matcht nicht mehr → Fallback
+    assert.equal(app.categorizeExpenseType('Benzin', config), 'other');
+});
+
+test('suggestEmployeeForExpense: eindeutiger Namensbestandteil → Vorschlag', () => {
+    const employees = [
+        { id: 'e1', name: 'Cetinkilic' },        // im Tool nur Nachname
+        { id: 'e2', name: 'Anna Weber' },
+        { id: 'e3', name: 'Tom Weber' },
+    ];
+    // ERP liefert vollen Namen, Tool kennt nur den Nachnamen → Vorschlag
+    assert.equal(app.suggestEmployeeForExpense('Salih Cetinkilic', employees).id, 'e1');
+    // "Weber" matcht zwei Mitarbeiter → kein Vorschlag
+    assert.equal(app.suggestEmployeeForExpense('Lisa Weber', employees), null);
+    assert.equal(app.suggestEmployeeForExpense('Unbekannt Person', employees), null);
 });
 
 test('findEmployeeForExpense: Alias > Name > umgekehrte Reihenfolge', () => {

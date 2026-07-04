@@ -96,10 +96,18 @@ const UtilizationView = ({ s, h }) => {
         // Returns the overload indicator for a single peak-week value:
         //   >=200% → red 💢, >=150% → orange 💢, otherwise null.
         const overloadIndicator = (maxPct) => {
-            if (maxPct >= 200) return { emoji: '💢', tone: 'text-rose-600', title: `Spitze: ${maxPct}% – doppelt verplant` };
-            if (maxPct >= 150) return { emoji: '💢', tone: 'text-amber-500', title: `Spitze: ${maxPct}% – Überlast` };
+            if (maxPct >= 200) return { emoji: '💢', tone: 'text-rose-600', title: t('util.peakDouble', { pct: maxPct }) };
+            if (maxPct >= 150) return { emoji: '💢', tone: 'text-amber-500', title: t('util.peakOver', { pct: maxPct }) };
             return null;
         };
+
+        // Mitarbeiter-Suche (kommagetrennte Begriffe wie im Ressourcen-Reiter)
+        const [empSearch, setEmpSearch] = React.useState('');
+        const searchTerms = React.useMemo(
+            () => empSearch.split(',').map(x => x.trim().toLowerCase()).filter(Boolean),
+            [empSearch]);
+        const matchesEmpSearch = (e) =>
+            searchTerms.length === 0 || searchTerms.some(q => (e.name || '').toLowerCase().includes(q));
 
         const activeCategories = activeEmpCategories;
 
@@ -109,6 +117,17 @@ const UtilizationView = ({ s, h }) => {
                     <div>
                         <h2 className="text-xl text-slate-900 font-medium">{t('util.title')}</h2>
                         <p className="text-sm text-slate-500">{t('util.subtitle')}</p>
+                    </div>
+                    <div className="flex gap-3 items-center">
+                    <div className="relative">
+                        <IconUsers size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                        <input type="text" value={empSearch}
+                            onChange={e => setEmpSearch(e.target.value)}
+                            placeholder={t('resource.empSearch')}
+                            className="pl-7 pr-7 py-2 border border-slate-300 rounded text-sm bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-gea-400 w-44"/>
+                        {empSearch && (
+                            <button onClick={() => setEmpSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><IconX size={12}/></button>
+                        )}
                     </div>
                     <div className="flex gap-4 items-center bg-slate-50 p-3 rounded-lg border border-slate-200">
                         <span className="text-sm text-slate-700 font-medium">{t('util.preview')}</span>
@@ -120,13 +139,14 @@ const UtilizationView = ({ s, h }) => {
                             <option value={52}>{t('util.weeks52')}</option>
                         </select>
                     </div>
+                    </div>
                 </div>
                 <div className="flex-1 overflow-auto px-6 pb-6">
                     <table className="w-full border-collapse text-sm">
                         <thead>
                             <tr>
                                 <th className="p-2 border-b-2 border-slate-300 text-left w-48 text-slate-500 font-medium sticky top-0 z-20 bg-white">{t('util.colEmployee')}</th>
-                                <th className="p-2 border-b-2 border-slate-300 text-center w-32 text-gea-600 bg-gea-50 font-medium sticky top-0 z-20">Ø Zeitraum</th>
+                                <th className="p-2 border-b-2 border-slate-300 text-center w-32 text-gea-600 bg-gea-50 font-medium sticky top-0 z-20">{t('util.colAvg')}</th>
                                 {months.map(m => {
                                     const firstWeek = weeksByMonth[m]?.[0];
                                     const jumpToMonth = () => {
@@ -149,8 +169,9 @@ const UtilizationView = ({ s, h }) => {
                         </thead>
                         <tbody>
                             {activeCategories.map(category => {
-                                const isCollapsed = collapsedCategories[category];
-                                const catEmps = activeEmpsByCategory.get(category) || [];
+                                const isCollapsed = searchTerms.length > 0 ? false : collapsedCategories[category];
+                                const catEmps = (activeEmpsByCategory.get(category) || []).filter(matchesEmpSearch);
+                                if (searchTerms.length > 0 && catEmps.length === 0) return null;
 
                                 return (
                                     <React.Fragment key={category}>

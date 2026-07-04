@@ -183,6 +183,8 @@ function App() {
   // Beide werden in settings.json persistiert.
   const [empAliases, setEmpAliases] = useState({});
   const [fxRates, setFxRates] = useState(null);
+  // Spesen-Kategorien (Labels/Keywords/eigene Kategorien); null = Defaults.
+  const [expenseCategories, setExpenseCategories] = useState(null);
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       return validateRestoredSession(JSON.parse(sessionStorage.getItem('plannerSession')));
@@ -638,6 +640,7 @@ function App() {
         }));
         if (parsedData.empAliases) setEmpAliases(parsedData.empAliases);
         if (parsedData.fxRates) setFxRates(parsedData.fxRates);
+        if (parsedData.expenseCategories) setExpenseCategories(parsedData.expenseCategories);
         // Migrate plaintext PINs to hashes and seed admin if missing.
         // Async; result triggers a re-render and the normal save cycle
         // will persist the hashed records.
@@ -906,7 +909,8 @@ function App() {
       autoBackup,
       emailTemplate,
       empAliases,
-      fxRates
+      fxRates,
+      expenseCategories
     };
     // Remote stores (SharePoint, local FS) carry the full user records
     // including PIN hashes so accounts survive a page reload. The localStorage
@@ -1046,7 +1050,7 @@ function App() {
         }
       }, 1500);
     }
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates, expenseCategories]);
 
   // Show the generated initial admin PIN once as a persistent toast so the
   // operator can note it down and change it immediately after first login.
@@ -1153,6 +1157,7 @@ function App() {
       invoiceRecipient,
       empAliases,
       fxRates,
+      expenseCategories,
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       backupReason: reason,
@@ -1236,7 +1241,7 @@ function App() {
       ok: false,
       error: 'Kein Backup-Ziel verfügbar (weder SharePoint noch lokaler Ordner verbunden).'
     };
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates, expenseCategories]);
 
   // Mirror runBackup into a ref so loginUser (which has no deps) can call
   // it with the latest closure.
@@ -1313,9 +1318,10 @@ function App() {
       autoBackup,
       emailTemplate,
       empAliases,
-      fxRates
+      fxRates,
+      expenseCategories
     };
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates, expenseCategories]);
 
   // Flush pending local save before the page unloads so a fast tab close
   // doesn't drop the most recent edits.
@@ -1380,6 +1386,7 @@ function App() {
       ...(prev || {}),
       ...data.fxRates
     }));
+    if (data.expenseCategories) setExpenseCategories(data.expenseCategories);
     // Skip updating users if the incoming snapshot is a stripped localStorage
     // copy (no PIN data present). PIN hashes are intentionally omitted from
     // localStorage to avoid persisting secrets; only SP/FS snapshots carry
@@ -2283,6 +2290,7 @@ function App() {
       invoiceRecipient,
       empAliases,
       fxRates,
+      expenseCategories,
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       exportedAt: new Date().toISOString(),
@@ -2296,7 +2304,7 @@ function App() {
     a.href = url;
     a.download = `Einsatzplanung3.0_Backup_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates, expenseCategories]);
   const importData = useCallback(e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -2307,9 +2315,15 @@ function App() {
         const result = validateImportedState(rawParsed);
         if (!result.ok) {
           if (result.reason === 'futureVersion') {
-            alert(`Diese Datei wurde mit einer neueren App-Version gespeichert (Schema v${result.version}, diese App nutzt v${SCHEMA_VERSION}). Bitte die App aktualisieren, bevor du sie importierst.`);
+            showToast(`Diese Datei wurde mit einer neueren App-Version gespeichert (Schema v${result.version}, diese App nutzt v${SCHEMA_VERSION}). Bitte die App aktualisieren, bevor du sie importierst.`, {
+              type: 'error',
+              duration: 10000
+            });
           } else {
-            alert('Fehler beim Importieren der Daten: Die Datei konnte nicht gelesen werden.');
+            showToast('Fehler beim Importieren: Die Datei konnte nicht gelesen werden.', {
+              type: 'error',
+              duration: 8000
+            });
           }
           return;
         }
@@ -2337,6 +2351,7 @@ function App() {
         if (parsed.invoiceRecipient !== undefined) setInvoiceRecipient(parsed.invoiceRecipient);
         if (parsed.empAliases) setEmpAliases(parsed.empAliases);
         if (parsed.fxRates) setFxRates(parsed.fxRates);
+        if (parsed.expenseCategories) setExpenseCategories(parsed.expenseCategories);
         if (parsed.auditLog) setAuditLog(parsed.auditLog);
         // appUsers is deliberately NOT imported: a backup can otherwise
         // inject attacker-controlled pinHash/pinSalt records. Local user
@@ -2346,11 +2361,14 @@ function App() {
           duration: 5000
         });
       } catch (err) {
-        alert('Fehler beim Importieren der Daten: Die Datei konnte nicht gelesen werden.');
+        showToast('Fehler beim Importieren: Die Datei konnte nicht gelesen werden.', {
+          type: 'error',
+          duration: 8000
+        });
       }
     };
     reader.readAsText(file);
-  }, []);
+  }, [showToast]);
   const buildInvoiceData = useCallback((proj, selection) => {
     const projAss = assignmentsByProject.get(proj.id) || [];
     const hoursByEmp = new Map();
@@ -2618,19 +2636,32 @@ function App() {
         notes: ''
       };
     };
+    // Inline-Validierung (abgeleitet, kein lokaler State: die Komponente
+    // wird inline definiert und remountet bei jedem App-Render).
+    const nameMissing = !projForm.name.trim();
+    const duplicateName = !nameMissing && projects.some(p => p.id !== editingProjectId && p.name.trim().toLowerCase() === projForm.name.trim().toLowerCase());
+    const weekOrderInvalid = !!(projForm.startWeek && projForm.ibnWeek && compareWeekIds(projForm.ibnWeek, projForm.startWeek) < 0);
+    const linkTrimmed = (projForm.sharepointLink || '').trim();
+    const linkInvalid = !!linkTrimmed && !/^https?:\/\//i.test(linkTrimmed);
+    const canSave = !nameMissing && !weekOrderInvalid && !linkInvalid;
+    // Live-Zusammenfassung des Zeitraums ("KW 40/25 – KW 50/26 · 63 Wochen")
+    const weekSpanLabel = (() => {
+      if (!projForm.startWeek || !projForm.ibnWeek || weekOrderInvalid) return null;
+      try {
+        const from = weekIdToMonday(projForm.startWeek);
+        const to = weekIdToMonday(projForm.ibnWeek);
+        const n = Math.round((to - from) / (7 * 86400000)) + 1;
+        return `${formatKW(projForm.startWeek)} – ${formatKW(projForm.ibnWeek)} · ${n} ${n === 1 ? t('projForm.week1') : t('projForm.weeksN')}`;
+      } catch (e) {
+        return null;
+      }
+    })();
+    const fieldCls = "w-full p-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500";
+    const sectionTitle = txt => /*#__PURE__*/React.createElement("h4", {
+      className: "text-[11px] font-semibold text-slate-400 uppercase tracking-wider pt-1"
+    }, txt);
     const save = () => {
-      if (!projForm.name.trim()) return;
-      if (projForm.startWeek && projForm.ibnWeek && compareWeekIds(projForm.ibnWeek, projForm.startWeek) < 0) {
-        alert('IBN-Woche darf nicht vor der Start-Woche liegen.');
-        return;
-      }
-      if (projForm.sharepointLink && projForm.sharepointLink.trim()) {
-        const link = projForm.sharepointLink.trim();
-        if (!/^https?:\/\//i.test(link)) {
-          alert('SharePoint-Link muss mit https:// oder http:// beginnen.');
-          return;
-        }
-      }
+      if (!canSave) return;
       if (isEditing) {
         setProjects(projects.map(p => p.id === editingProjectId ? {
           ...p,
@@ -2656,67 +2687,35 @@ function App() {
     return /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden"
+      className: "bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden"
     }, /*#__PURE__*/React.createElement(ModalHeader, {
-      title: isEditing ? 'Projekt bearbeiten' : 'Neues Projekt',
+      title: isEditing ? t('projForm.editTitle') : t('projForm.newTitle'),
       onClose: cancel
     }), /*#__PURE__*/React.createElement("div", {
-      className: "p-6 space-y-4"
-    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 overflow-y-auto p-6 space-y-4"
+    }, sectionTitle(t('projForm.secBase')), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-2 gap-4"
     }, /*#__PURE__*/React.createElement("div", {
       className: "col-span-2"
     }, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Name"), /*#__PURE__*/React.createElement("input", {
+    }, t('projForm.name'), " ", /*#__PURE__*/React.createElement("span", {
+      className: "text-rose-500"
+    }, "*")), /*#__PURE__*/React.createElement("input", {
       type: "text",
       value: projForm.name,
       onChange: e => setProjForm({
         ...projForm,
         name: e.target.value
       }),
-      className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500",
+      placeholder: "z.B. AFS Haut Cornet",
+      className: fieldCls,
       autoFocus: true
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "col-span-2"
-    }, /*#__PURE__*/React.createElement("label", {
+    }), duplicateName && /*#__PURE__*/React.createElement("p", {
+      className: "text-[11px] text-amber-600 mt-1"
+    }, "\u26A0 ", t('projForm.duplicateName'))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Adresse"), /*#__PURE__*/React.createElement("input", {
-      type: "text",
-      value: projForm.address || '',
-      onChange: e => setProjForm({
-        ...projForm,
-        address: e.target.value
-      }),
-      placeholder: "Stra\xDFe, PLZ Ort, Land",
-      className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "col-span-2"
-    }, /*#__PURE__*/React.createElement("label", {
-      className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Land"), /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-2 items-stretch"
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "text",
-      value: projForm.country || '',
-      onChange: e => setProjForm({
-        ...projForm,
-        country: e.target.value
-      }),
-      placeholder: "z.B. DE oder Deutschland",
-      className: "flex-1 p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"
-    }), (() => {
-      const code = resolveCountryCode(projForm.country);
-      const styled = code === '??' ? 'bg-rose-50 border-rose-300 text-rose-700' : code === '/' ? 'bg-slate-50 border-slate-300 text-slate-400' : 'bg-emerald-50 border-emerald-300 text-emerald-700';
-      return /*#__PURE__*/React.createElement("span", {
-        className: `px-3 py-2 rounded text-sm font-mono font-bold border min-w-[3.5rem] text-center flex items-center justify-center ${styled}`,
-        title: "Aufl\xF6sung des Eingabefelds"
-      }, code);
-    })()), /*#__PURE__*/React.createElement("p", {
-      className: "text-[11px] text-slate-500 mt-1"
-    }, "Land oder ISO-K\xFCrzel eingeben \u2014 wird auf einen 2-Buchstaben-Code aufgel\xF6st. Erscheint in \xDCbersicht und Projekte.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-      className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Projektnr."), /*#__PURE__*/React.createElement("input", {
+    }, t('projForm.number')), /*#__PURE__*/React.createElement("input", {
       type: "text",
       maxLength: 15,
       value: projForm.projectNumber,
@@ -2725,36 +2724,36 @@ function App() {
         projectNumber: e.target.value
       }),
       placeholder: "GEA-2024-00001",
-      className: "w-full p-2 border border-slate-400 rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"
+      className: `${fieldCls} font-mono`
     })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Kategorie"), /*#__PURE__*/React.createElement("select", {
+    }, t('projForm.category')), /*#__PURE__*/React.createElement("select", {
       value: projForm.category,
       onChange: e => setProjForm({
         ...projForm,
         category: e.target.value
       }),
-      className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400"
+      className: `${fieldCls} bg-white`
     }, projCategories.map(c => /*#__PURE__*/React.createElement("option", {
       key: c,
       value: c
     }, c)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Typ"), /*#__PURE__*/React.createElement("select", {
+    }, t('projForm.type')), /*#__PURE__*/React.createElement("select", {
       value: projForm.projType || '',
       onChange: e => setProjForm({
         ...projForm,
         projType: e.target.value
       }),
-      className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400"
+      className: `${fieldCls} bg-white`
     }, /*#__PURE__*/React.createElement("option", {
       value: ""
-    }, "\u2014 kein Typ \u2014"), projTypes.map(t => /*#__PURE__*/React.createElement("option", {
+    }, t('projForm.noType')), projTypes.map(t => /*#__PURE__*/React.createElement("option", {
       key: t,
       value: t
     }, t)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Gr\xF6\xDFe (Size)"), /*#__PURE__*/React.createElement("input", {
+    }, t('projForm.size')), /*#__PURE__*/React.createElement("input", {
       type: "number",
       min: "0",
       step: "1",
@@ -2764,56 +2763,80 @@ function App() {
         size: e.target.value
       }),
       placeholder: "z.B. 5",
-      className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"
-    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: fieldCls
+    }))), sectionTitle(t('projForm.secPeriod')), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-4"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Start (KW)"), /*#__PURE__*/React.createElement("input", {
-      type: "week",
+    }, t('projForm.startWeek')), /*#__PURE__*/React.createElement(WeekPickerInput, {
       value: projForm.startWeek,
-      onChange: e => setProjForm({
+      onChange: w => setProjForm({
         ...projForm,
-        startWeek: e.target.value
-      }),
-      className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400"
+        startWeek: w
+      })
     })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "IBN (KW)"), /*#__PURE__*/React.createElement("input", {
-      type: "week",
+    }, t('projForm.ibnWeek')), /*#__PURE__*/React.createElement(WeekPickerInput, {
       value: projForm.ibnWeek,
+      invalid: weekOrderInvalid,
+      onChange: w => setProjForm({
+        ...projForm,
+        ibnWeek: w
+      })
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "col-span-2 -mt-2"
+    }, weekOrderInvalid ? /*#__PURE__*/React.createElement("p", {
+      className: "text-[11px] text-rose-600"
+    }, t('projForm.weekOrderError')) : weekSpanLabel ? /*#__PURE__*/React.createElement("p", {
+      className: "text-[11px] text-slate-500"
+    }, t('projForm.duration'), ": ", /*#__PURE__*/React.createElement("span", {
+      className: "font-medium text-slate-700"
+    }, weekSpanLabel)) : null)), sectionTitle(t('projForm.secLocation')), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "col-span-2"
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "block text-xs text-slate-700 mb-1 font-semibold"
+    }, t('projForm.address')), /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: projForm.address || '',
       onChange: e => setProjForm({
         ...projForm,
-        ibnWeek: e.target.value
+        address: e.target.value
       }),
-      className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400"
+      placeholder: "Stra\xDFe, PLZ Ort, Land",
+      className: fieldCls
     })), /*#__PURE__*/React.createElement("div", {
       className: "col-span-2"
     }, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "SharePoint / Projektlink"), /*#__PURE__*/React.createElement("input", {
-      type: "url",
-      value: projForm.sharepointLink || '',
+    }, t('projForm.country')), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 items-stretch"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: projForm.country || '',
       onChange: e => setProjForm({
         ...projForm,
-        sharepointLink: e.target.value
+        country: e.target.value
       }),
-      placeholder: "https://...",
-      className: "w-full p-2 border border-slate-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "col-span-2"
-    }, /*#__PURE__*/React.createElement("label", {
-      className: "block text-xs text-slate-700 mb-1 font-semibold"
-    }, "Notizen"), /*#__PURE__*/React.createElement("textarea", {
-      rows: 3,
-      value: projForm.notes || '',
-      onChange: e => setProjForm({
-        ...projForm,
-        notes: e.target.value
-      }),
-      placeholder: "Interne Hinweise, Besonderheiten \u2026",
-      className: "w-full p-2 border border-slate-400 rounded text-sm resize-y focus:outline-none focus:ring-2 focus:ring-gea-400 focus:border-gea-500"
-    }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      placeholder: "z.B. DE oder Deutschland",
+      className: `flex-1 ${fieldCls}`
+    }), (() => {
+      const code = resolveCountryCode(projForm.country);
+      const styled = code === '??' ? 'bg-rose-50 border-rose-300 text-rose-700' : code === '/' ? 'bg-slate-50 border-slate-300 text-slate-400' : 'bg-emerald-50 border-emerald-300 text-emerald-700';
+      return /*#__PURE__*/React.createElement("span", {
+        className: `px-3 py-2 rounded-md text-sm font-mono font-bold border min-w-[3.5rem] text-center flex items-center justify-center ${styled}`,
+        title: "Aufl\xF6sung des Eingabefelds"
+      }, code);
+    })()), /*#__PURE__*/React.createElement("p", {
+      className: "text-[11px] text-slate-500 mt-1"
+    }, t('projForm.countryHint')))), sectionTitle(t('projForm.secAppearance')), /*#__PURE__*/React.createElement("div", {
+      className: "space-y-4"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-2 font-semibold"
-    }, "Farbe"), /*#__PURE__*/React.createElement("div", {
+    }, t('projForm.color'), " ", /*#__PURE__*/React.createElement("span", {
+      className: "font-normal text-slate-400"
+    }, "(", t('projForm.colorHint'), ")")), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-wrap gap-2"
     }, PROJECT_COLORS.map(c => /*#__PURE__*/React.createElement("button", {
       key: c.id,
@@ -2823,15 +2846,46 @@ function App() {
       }),
       title: c.id,
       className: `w-7 h-7 rounded-full border-2 transition-all ${c.dot} ${projForm.color === c.id ? 'border-slate-800 scale-110 shadow' : 'border-transparent hover:border-slate-400'}`
+    })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "block text-xs text-slate-700 mb-1 font-semibold"
+    }, t('projForm.link')), /*#__PURE__*/React.createElement("input", {
+      type: "url",
+      value: projForm.sharepointLink || '',
+      onChange: e => setProjForm({
+        ...projForm,
+        sharepointLink: e.target.value
+      }),
+      placeholder: "https://...",
+      className: `${fieldCls} ${linkInvalid ? 'border-rose-400 ring-1 ring-rose-300' : ''}`
+    }), linkInvalid && /*#__PURE__*/React.createElement("p", {
+      className: "text-[11px] text-rose-600 mt-1"
+    }, t('projForm.linkError'))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "block text-xs text-slate-700 mb-1 font-semibold"
+    }, t('projForm.notes'), " ", /*#__PURE__*/React.createElement("span", {
+      className: "font-normal text-slate-400"
+    }, "(", t('projForm.notesHint'), ")")), /*#__PURE__*/React.createElement("textarea", {
+      rows: 3,
+      value: projForm.notes || '',
+      onChange: e => setProjForm({
+        ...projForm,
+        notes: e.target.value
+      }),
+      placeholder: t('projForm.notesPlaceholder'),
+      className: `${fieldCls} resize-y`
     })))), /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-2 pt-2"
+      className: "p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-2"
+    }, nameMissing && /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-400"
+    }, t('projForm.nameRequired')), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 ml-auto"
     }, /*#__PURE__*/React.createElement("button", {
       onClick: cancel,
-      className: "flex-1 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
-    }, "Abbruch"), /*#__PURE__*/React.createElement("button", {
+      className: "bg-white border border-slate-300 text-slate-600 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+    }, t('btn.cancel')), /*#__PURE__*/React.createElement("button", {
       onClick: save,
-      className: "flex-1 bg-gea-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors"
-    }, isEditing ? 'Speichern' : 'Erstellen')))));
+      disabled: !canSave,
+      className: "bg-gea-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+    }, isEditing ? t('btn.save') : t('projForm.createBtn'))))));
   };
   const HelpModal = () => /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -3178,7 +3232,8 @@ function App() {
     lastBackupAt,
     emailTemplate,
     empAliases,
-    fxRates
+    fxRates,
+    expenseCategories
   };
   const h = useMemo(() => ({
     setActiveTab,
@@ -3242,6 +3297,7 @@ function App() {
     setEmailTemplate,
     setEmpAliases,
     setFxRates,
+    setExpenseCategories,
     showToast,
     dismissToast,
     requestConfirm,

@@ -229,6 +229,14 @@ const SupportView = ({
       return prev.slice(0, -1);
     });
   }, [setAssignments]);
+
+  // Mitarbeiter-Suche (kommagetrennte Begriffe, 250 ms Debounce – wie im
+  // Ressourcen-Reiter)
+  const [empSearch, setEmpSearch] = React.useState('');
+  const [empSearchRaw, setEmpSearchRaw] = React.useState('');
+  const empDebounceRef = React.useRef(null);
+  const searchTerms = React.useMemo(() => empSearch.split(',').map(x => x.trim().toLowerCase()).filter(Boolean), [empSearch]);
+  const matchesEmpSearch = React.useCallback(e => searchTerms.length === 0 || searchTerms.some(q => (e.name || '').toLowerCase().includes(q)), [searchTerms]);
   const monthGroups = React.useMemo(() => {
     const groups = [];
     let cur = null;
@@ -260,21 +268,23 @@ const SupportView = ({
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center"
+  }, /*#__PURE__*/React.createElement(Tooltip, {
+    text: t('btn.weeks4back')
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => scrollWeeks(-4),
-    className: "p-1.5 rounded-l bg-gea-100 text-gea-700 hover:bg-gea-200 transition-colors border-r border-gea-200",
-    title: t('btn.weeks4back')
+    className: "p-1.5 rounded-l bg-gea-100 text-gea-700 hover:bg-gea-200 transition-colors border-r border-gea-200"
   }, /*#__PURE__*/React.createElement(IconChevronLeft, {
     size: 16
-  })), /*#__PURE__*/React.createElement("span", {
+  }))), /*#__PURE__*/React.createElement("span", {
     className: "px-2 text-xs text-slate-500 bg-gea-50 h-[30px] flex items-center min-w-[130px] justify-center border-y border-gea-100 font-mono tabular-nums"
-  }, scrollInfo.label || '—'), /*#__PURE__*/React.createElement("button", {
+  }, scrollInfo.label || '—'), /*#__PURE__*/React.createElement(Tooltip, {
+    text: t('btn.weeks4fwd')
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => scrollWeeks(4),
-    className: "p-1.5 rounded-r bg-gea-100 text-gea-700 hover:bg-gea-200 transition-colors border-l border-gea-200",
-    title: t('btn.weeks4fwd')
+    className: "p-1.5 rounded-r bg-gea-100 text-gea-700 hover:bg-gea-200 transition-colors border-l border-gea-200"
   }, /*#__PURE__*/React.createElement(IconChevronRight, {
     size: 16
-  }))), /*#__PURE__*/React.createElement("select", {
+  })))), /*#__PURE__*/React.createElement("select", {
     value: timelineYear,
     onChange: e => setTimelineYear(Number(e.target.value)),
     className: "border border-slate-300 rounded px-2 py-1.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-gea-400"
@@ -293,7 +303,32 @@ const SupportView = ({
       }
     },
     className: "px-3 py-1.5 bg-gea-100 text-gea-700 rounded-lg text-sm font-medium hover:bg-gea-200 transition-colors"
-  }, t('btn.today'))), isDeleteMode && /*#__PURE__*/React.createElement("div", {
+  }, t('btn.today'))), /*#__PURE__*/React.createElement("div", {
+    className: "relative"
+  }, /*#__PURE__*/React.createElement(IconUsers, {
+    size: 14,
+    className: "absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: empSearchRaw,
+    onChange: e => {
+      const v = e.target.value;
+      setEmpSearchRaw(v);
+      if (empDebounceRef.current) clearTimeout(empDebounceRef.current);
+      empDebounceRef.current = setTimeout(() => setEmpSearch(v), 250);
+    },
+    placeholder: t('resource.empSearch'),
+    className: "pl-7 pr-7 py-1.5 border border-slate-300 rounded text-sm bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-gea-400 w-44"
+  }), empSearchRaw && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (empDebounceRef.current) clearTimeout(empDebounceRef.current);
+      setEmpSearchRaw('');
+      setEmpSearch('');
+    },
+    className: "absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+  }, /*#__PURE__*/React.createElement(IconX, {
+    size: 12
+  }))), isDeleteMode && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center bg-rose-50 border border-rose-300 rounded-lg overflow-hidden shrink-0"
   }, /*#__PURE__*/React.createElement("span", {
     className: "flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-rose-700"
@@ -408,9 +443,19 @@ const SupportView = ({
       className: "text-[9px] font-semibold text-amber-600 leading-tight mt-0.5 truncate",
       title: w.holidays.join(' · ')
     }, w.holidays.join(' · ')));
-  }))), /*#__PURE__*/React.createElement("tbody", null, supportEmpCategories.map(category => {
-    const isCollapsed = collapsedCategories[category];
-    const catEmps = supportEmpsByCategory.get(category) || [];
+  }))), /*#__PURE__*/React.createElement("tbody", null, supportEmpCategories.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 99,
+    className: "p-0"
+  }, /*#__PURE__*/React.createElement(EmptyState, {
+    icon: /*#__PURE__*/React.createElement(IconLifebuoy, {
+      size: 32
+    }),
+    title: t('support.emptyTitle'),
+    description: t('support.emptyDesc')
+  }))), supportEmpCategories.map(category => {
+    const isCollapsed = searchTerms.length > 0 ? false : collapsedCategories[category];
+    const catEmps = (supportEmpsByCategory.get(category) || []).filter(matchesEmpSearch);
+    if (searchTerms.length > 0 && catEmps.length === 0) return null;
     return /*#__PURE__*/React.createElement(React.Fragment, {
       key: category
     }, /*#__PURE__*/React.createElement("tr", {

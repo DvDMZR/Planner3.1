@@ -200,6 +200,11 @@ const SetupEmpView = ({
   };
   const emailValid = isValidEmail(empForm.email);
   const canSave = empForm.name.trim() && emailValid;
+
+  // Suche über Name, Email und Rolle (bei vielen Mitarbeitern nötig)
+  const [empSearch, setEmpSearch] = React.useState('');
+  const empQ = empSearch.trim().toLowerCase();
+  const matchesEmpSearch = e => !empQ || (e.name || '').toLowerCase().includes(empQ) || (e.email || '').toLowerCase().includes(empQ) || (e.role || '').toLowerCase().includes(empQ);
   return /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-auto p-8 bg-slate-50"
   }, /*#__PURE__*/React.createElement("div", {
@@ -207,19 +212,40 @@ const SetupEmpView = ({
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "p-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between"
+    className: "p-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap"
   }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-xl text-slate-900 font-medium"
-  }, t('emp.title')), /*#__PURE__*/React.createElement("button", {
+    className: "text-xl text-slate-900 font-medium shrink-0"
+  }, t('emp.title')), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 flex-1 justify-end"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "relative flex-1 max-w-sm"
+  }, /*#__PURE__*/React.createElement(IconSearch, {
+    size: 15,
+    className: "absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: empSearch,
+    onChange: e => setEmpSearch(e.target.value),
+    placeholder: t('emp.searchPlaceholder'),
+    className: "w-full pl-8 pr-7 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gea-400 bg-white"
+  }), empSearch && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEmpSearch(''),
+    className: "absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+  }, /*#__PURE__*/React.createElement(IconX, {
+    size: 14
+  }))), /*#__PURE__*/React.createElement("button", {
     onClick: openCreateForm,
-    className: "bg-gea-600 text-white px-4 py-2 rounded text-sm hover:bg-gea-700 font-medium transition-colors flex items-center gap-2"
+    className: "bg-gea-600 text-white px-4 py-2 rounded text-sm hover:bg-gea-700 font-medium transition-colors flex items-center gap-2 shrink-0"
   }, /*#__PURE__*/React.createElement(IconPlus, {
     size: 16
-  }), " ", t('emp.add')))), /*#__PURE__*/React.createElement("div", {
+  }), " ", t('emp.add'))))), /*#__PURE__*/React.createElement("div", {
     className: "space-y-4"
   }, empCategories.map(category => {
-    const isCollapsed = collapsedEmpSetup[category];
-    const catEmps = employees.filter(e => e.category === category);
+    // Bei aktiver Suche Kategorien aufgeklappt lassen,
+    // sonst sind Treffer unsichtbar.
+    const isCollapsed = empQ ? false : collapsedEmpSetup[category];
+    const catEmps = employees.filter(e => e.category === category && matchesEmpSearch(e));
+    if (empQ && catEmps.length === 0) return null;
     return /*#__PURE__*/React.createElement("div", {
       key: category,
       className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
@@ -302,6 +328,10 @@ const SetupEmpView = ({
     className: "p-6 space-y-4 overflow-y-auto",
     style: {
       maxHeight: 'calc(90vh - 130px)'
+    },
+    onKeyDown: e => {
+      // Enter speichert (außer im Notizen-Textarea)
+      if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && canSave) handleSaveEmp();
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-4"
@@ -309,7 +339,7 @@ const SetupEmpView = ({
     className: "col-span-2"
   }, /*#__PURE__*/React.createElement("label", {
     className: "block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide"
-  }, "Name *"), /*#__PURE__*/React.createElement("input", {
+  }, t('emp.fieldName'), " *"), /*#__PURE__*/React.createElement("input", {
     type: "text",
     autoFocus: true,
     value: empForm.name,
@@ -346,7 +376,7 @@ const SetupEmpView = ({
     className: "col-span-2"
   }, /*#__PURE__*/React.createElement("label", {
     className: "block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide"
-  }, "Email"), /*#__PURE__*/React.createElement("input", {
+  }, t('emp.fieldEmail')), /*#__PURE__*/React.createElement("input", {
     type: "email",
     value: empForm.email,
     onChange: e => setEmpForm({
