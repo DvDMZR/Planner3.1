@@ -131,7 +131,7 @@ const AuditView = ({ s, h }) => {
 
     return (
         <main className="flex-1 overflow-auto">
-            <div className="max-w-4xl mx-auto p-6 space-y-6">
+            <div className="max-w-6xl mx-auto p-6 space-y-6">
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h2 className="text-xl font-semibold text-slate-900 mb-1">{t('audit.title')}</h2>

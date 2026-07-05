@@ -103,7 +103,7 @@ const SetupEmpView = ({ s, h }) => {
 
         return (
             <div className="flex-1 overflow-auto p-8 bg-slate-50">
-                <div className="max-w-4xl mx-auto space-y-6">
+                <div className="max-w-7xl mx-auto space-y-6">
 
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         <div className="p-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap">
@@ -127,7 +127,9 @@ const SetupEmpView = ({ s, h }) => {
                         </div>
                     </div>
 
-                    <div className="space-y-4">
+                    {/* Kategorie-Karten in zwei Spalten (Desktop) – jede Karte
+                        behält ihre eigene Höhe, da items-start statt Stretch. */}
+                    <div className="grid lg:grid-cols-2 gap-4 items-start">
                         {empCategories.map(category => {
                             // Bei aktiver Suche Kategorien aufgeklappt lassen,
                             // sonst sind Treffer unsichtbar.

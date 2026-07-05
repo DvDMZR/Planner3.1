@@ -208,7 +208,7 @@ const SetupEmpView = ({
   return /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-auto p-8 bg-slate-50"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "max-w-4xl mx-auto space-y-6"
+    className: "max-w-7xl mx-auto space-y-6"
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
@@ -239,7 +239,7 @@ const SetupEmpView = ({
   }, /*#__PURE__*/React.createElement(IconPlus, {
     size: 16
   }), " ", t('emp.add'))))), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-4"
+    className: "grid lg:grid-cols-2 gap-4 items-start"
   }, empCategories.map(category => {
     // Bei aktiver Suche Kategorien aufgeklappt lassen,
     // sonst sind Treffer unsichtbar.

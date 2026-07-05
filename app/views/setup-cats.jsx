@@ -182,7 +182,13 @@ const SetupCatsView = ({ s, h }) => {
 
     return (
         <div className="flex-1 overflow-auto p-8 bg-slate-50">
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-7xl mx-auto">
+            {/* Zwei unabhängige Spalten-Stacks statt Grid-Auto-Placement, damit
+                sich Karten unterschiedlicher Höhe nicht gegenseitig strecken.
+                Links: Planungs-Tasks (Basic/Other/Support/Trainings/Abwesenheit).
+                Rechts: Struktur & Import (Kategorien/Typen/Spesen/Inaktiv). */}
+            <div className="grid lg:grid-cols-2 gap-6 items-start">
+            <div className="space-y-6">
 
                 {/* ── Basic Tasks ─────────────────────────────────────── */}
                 {section('basic', 'Basic Tasks', { count: hardcodedBasicTasks.length, hint: 'Fest eingebaute Standard-Tasks (z. B. Office) – immer aktiv.' }, (
@@ -379,6 +385,9 @@ const SetupCatsView = ({ s, h }) => {
                         </ul>
                     </div>
                 ))}
+
+            </div>
+            <div className="space-y-6">
 
                 {/* ── Mitarbeiter-Kategorien ──────────────────────────── */}
                 {section('empCats', t('cats.section.empCats'), { count: empCategories.length, hint: 'Teams – gruppieren Mitarbeiter in allen Planungsansichten.' }, (
@@ -608,6 +617,8 @@ const SetupCatsView = ({ s, h }) => {
                     )}
                 </div>
 
+            </div>
+            </div>
             </div>
         </div>
     );

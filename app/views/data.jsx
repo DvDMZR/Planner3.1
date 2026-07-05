@@ -133,7 +133,7 @@ const DataView = ({ s, h }) => {
 
     return (
         <main className="flex-1 overflow-auto">
-            <div className="max-w-3xl mx-auto p-6 space-y-6">
+            <div className="max-w-7xl mx-auto p-6 space-y-6">
 
                 <div className="flex items-center gap-4">
                     <IconSettings size={36} className="text-slate-300 shrink-0"/>
@@ -148,6 +148,12 @@ const DataView = ({ s, h }) => {
                         {successMsg}
                     </div>
                 )}
+
+            {/* Zwei unabhängige Spalten-Stacks: links Konten/Zugriff, rechts
+                System-Einstellungen. Der Reset-Button bleibt unten außerhalb
+                der Spalten – als riskante Aktion visuell abgesetzt. */}
+            <div className="grid lg:grid-cols-2 gap-6 items-start">
+            <div className="space-y-6">
 
                 {/* ── Benutzer ─────────────────────────────────────────── */}
                 {section(t('data.sectionUsers'), (
@@ -314,6 +320,9 @@ const DataView = ({ s, h }) => {
                     </div>
                 ))}
 
+            </div>
+            <div className="space-y-6">
+
                 {/* Auto-Backup – Admins */}
                 {isAdmin && autoBackup && section(t('data.sectionBackup'), (
                     <div className="p-4 space-y-3">
@@ -418,8 +427,14 @@ const DataView = ({ s, h }) => {
                     </div>
                 ))}
 
-                {/* Reset */}
+            </div>
+            </div>
+
+                {/* Reset – bewusst schmal statt volle 7xl-Breite: eine
+                    destruktive Aktion soll nicht wie ein prominenter,
+                    breiter Primär-Button wirken. */}
                 {isAdmin && (
+                    <div className="max-w-md mx-auto">
                     <button onClick={() => {
                         requestConfirm({
                             title: t('data.resetSystem'),
@@ -445,9 +460,10 @@ const DataView = ({ s, h }) => {
                                 window.location.reload();
                             },
                         });
-                    }} className="w-full text-rose-500 hover:bg-rose-50 py-3 rounded-lg text-sm font-medium transition-colors">
+                    }} className="w-full text-rose-500 hover:bg-rose-50 py-3 rounded-lg text-sm font-medium transition-colors border border-rose-200">
                         {t('data.resetSystem')}
                     </button>
+                    </div>
                 )}
             </div>
         </main>
