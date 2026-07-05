@@ -204,7 +204,7 @@ const DataView = ({
   return /*#__PURE__*/React.createElement("main", {
     className: "flex-1 overflow-auto"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "max-w-3xl mx-auto p-6 space-y-6"
+    className: "max-w-7xl mx-auto p-6 space-y-6"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-4"
   }, /*#__PURE__*/React.createElement(IconSettings, {
@@ -216,7 +216,11 @@ const DataView = ({
     className: "text-sm text-slate-500"
   }, t('data.subtitle')))), successMsg && /*#__PURE__*/React.createElement("div", {
     className: "bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-sm"
-  }, successMsg), section(t('data.sectionUsers'), appUsers.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, successMsg), /*#__PURE__*/React.createElement("div", {
+    className: "grid lg:grid-cols-2 gap-6 items-start"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, section(t('data.sectionUsers'), appUsers.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "px-4 py-6 text-center text-slate-400 text-sm"
   }, t('data.noUsers')) : /*#__PURE__*/React.createElement("div", {
     className: "divide-y divide-slate-100"
@@ -396,7 +400,9 @@ const DataView = ({
     onClick: addAlias,
     disabled: !newAliasName.trim() || !newAliasEmpId,
     className: "bg-gea-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-gea-700 disabled:opacity-40"
-  }, t('btn.add'))))), isAdmin && autoBackup && section(t('data.sectionBackup'), /*#__PURE__*/React.createElement("div", {
+  }, t('btn.add')))))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, isAdmin && autoBackup && section(t('data.sectionBackup'), /*#__PURE__*/React.createElement("div", {
     className: "p-4 space-y-3"
   }, /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 text-sm text-slate-700"
@@ -503,7 +509,9 @@ const DataView = ({
     size: 18
   }), " ", t('data.importBtn')))), /*#__PURE__*/React.createElement(DepsSection, {
     t: t
-  }))), isAdmin && /*#__PURE__*/React.createElement("button", {
+  }))))), isAdmin && /*#__PURE__*/React.createElement("div", {
+    className: "max-w-md mx-auto"
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       requestConfirm({
         title: t('data.resetSystem'),
@@ -538,6 +546,6 @@ const DataView = ({
         }
       });
     },
-    className: "w-full text-rose-500 hover:bg-rose-50 py-3 rounded-lg text-sm font-medium transition-colors"
-  }, t('data.resetSystem'))));
+    className: "w-full text-rose-500 hover:bg-rose-50 py-3 rounded-lg text-sm font-medium transition-colors border border-rose-200"
+  }, t('data.resetSystem')))));
 };

@@ -251,7 +251,11 @@ const SetupCatsView = ({
   return /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-auto p-8 bg-slate-50"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "max-w-4xl mx-auto space-y-6"
+    className: "max-w-7xl mx-auto"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid lg:grid-cols-2 gap-6 items-start"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
   }, section('basic', 'Basic Tasks', {
     count: hardcodedBasicTasks.length,
     hint: 'Fest eingebaute Standard-Tasks (z. B. Office) – immer aktiv.'
@@ -494,7 +498,9 @@ const SetupCatsView = ({
     size: 16
   }))))), activeOfftimeTasks.length === 0 && /*#__PURE__*/React.createElement("li", {
     className: "p-6 text-sm text-slate-400 text-center"
-  }, t('cats.noAbsenceTypes'))))), section('empCats', t('cats.section.empCats'), {
+  }, t('cats.noAbsenceTypes')))))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, section('empCats', t('cats.section.empCats'), {
     count: empCategories.length,
     hint: 'Teams – gruppieren Mitarbeiter in allen Planungsansichten.'
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -755,5 +761,5 @@ const SetupCatsView = ({
   }, task), /*#__PURE__*/React.createElement("button", {
     onClick: () => setInactiveTrainingTasks(prev => prev.filter(t => t !== task)),
     className: "px-2.5 py-1 text-xs bg-gea-50 text-gea-700 border border-gea-200 rounded hover:bg-gea-100 shrink-0"
-  }, t('cats.reactivate')))))))));
+  }, t('cats.reactivate')))))))))));
 };

@@ -144,7 +144,7 @@ const AuditView = ({
   return /*#__PURE__*/React.createElement("main", {
     className: "flex-1 overflow-auto"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "max-w-4xl mx-auto p-6 space-y-6"
+    className: "max-w-6xl mx-auto p-6 space-y-6"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-start justify-between gap-4"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
