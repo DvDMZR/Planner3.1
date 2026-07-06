@@ -1,5 +1,5 @@
 // ─── TEAM-SPLIT FILE LAYOUT ───────────────────────────────────────────────────
-const APP_VERSION = 'v0.90';
+const APP_VERSION = 'v0.91';
 const DEFAULT_TEAMS = ['AS', 'CMS', 'CSS', 'HM', 'I&C', 'Other'];
 const PLANNER_DATA_DIR = 'planner-data';
 const SCHEMA_VERSION = 4;
@@ -77,6 +77,57 @@ const ensureAdmin = async (users) => {
 
 // --- CHANGELOG ---
 const CHANGELOG_CONTENT = `# Changelog
+
+## v0.91 (2026-07-05)
+
+### Neues Feature: Spesen-Import
+- **Kostenabrechnung per Copy & Paste importieren**: ERP-Text einfügen, wird automatisch
+  in Kopfdaten und Einzelposten geparst (Datum, Typ, Lieferant, Ort, Betrag).
+- Automatische Kategorisierung der Posten auf **Reisekosten, Unterkunft, Verpflegung,
+  Sonstiges** per Keyword-Zuordnung; neue Kostenart **Verpflegung** ergänzt.
+- **Mitarbeiter-Erkennung mit Alias-Gedächtnis**: erkennt Namen trotz Akzenten/Schreibweise;
+  bei unbekanntem Namen manuelle Zuordnung, die künftig automatisch wiedererkannt wird.
+- **Planungs-Abgleich je Kalenderwoche**: prüft, ob der Mitarbeiter in den Wochen der
+  Belege für das Projekt eingeplant war, und bietet an, fehlende Wochen (0 h, „Unter
+  Vorbehalt") direkt zur Planung hinzuzufügen.
+- Beträge in Fremdwährung werden mit editierbarem, gespeichertem Kurs in Euro umgerechnet.
+- Zweistufige Ansicht: Kategorie-Summen und voll editierbare Einzelposten-Liste
+  (Betrag korrigieren, Posten aus der Summe ausschließen, löschen, Live-Gesamtsumme).
+  Duplikat-Erkennung über die Abrechnungs-ID verhindert doppelten Import.
+- E-Mail-Versand der Kostenaufstellung jetzt mit Umschalter **Zusammengefasst**
+  (nur Kategorien-Summen) vs. **Detailliert** (alle Einzelposten).
+- **Verwaltung → Kategorien**: neuer Abschnitt „Spesen-Kategorien" – Keywords je Kategorie
+  einsehen/ergänzen, Kategorien umbenennen, eigene Kategorien mit eigenen Keywords anlegen.
+- **System & Export**: neuer Abschnitt „Namens-Aliase" – gelernte Zuordnungen einsehen,
+  ändern, löschen oder manuell anlegen.
+
+### UX-Überarbeitung
+- **Eigener Kalenderwochen-Picker** ersetzt die browserabhängigen Wochenfelder im
+  Projekt-Formular und im Planungsdialog (Wiederholung bis Woche).
+- **Projekt-Formular überarbeitet**: in Abschnitte gegliedert, Inline-Validierung statt
+  Popup-Meldungen, Live-Anzeige der Projektlaufzeit, Warnung bei doppeltem Namen.
+- **Leere Ansichten führen jetzt zum Ziel**: Übersicht, Abwesenheiten, Support und
+  Kostenpunkte zeigen bei leerem Datenstand eine Erklärung mit passendem Aktions-Button
+  statt einer leeren Tabelle.
+- Formulare speichern jetzt zuverlässig per Enter; Speichern-Buttons sind deaktiviert
+  statt bei ungültigen Eingaben stillschweigend nichts zu tun.
+- Neue Suchfelder in Mitarbeiterverwaltung, Abwesenheiten, Support und Auslastung.
+- Rund 60 zuvor hartkodierte Texte ins Übersetzungssystem überführt – die englische
+  Oberfläche ist dadurch durchgängiger.
+- Vereinheitlichte Tooltips, beschrifteter Zurück-Button, konsistentere Beschriftungen
+  ("Size" → "Größe" u. a.).
+- **Verwaltungsseiten nutzen jetzt die volle Bildschirmbreite**: Kategorien, System &
+  Export und Mitarbeiterverwaltung zeigen ihre Abschnitte auf Desktop-Breite in zwei
+  Spalten statt in einer schmalen, zentrierten Einzelspalte. Auf schmalen Fenstern
+  bleibt die Ansicht unverändert einspaltig.
+
+### Stabilität & Synchronisation
+- Erste automatisierte Testsuite (Wochenlogik, Datenmigration, Sync-Schutzmechanismen).
+- Selektiver Abgleich bei gleichzeitiger Nutzung durch mehrere Personen: Änderungen am
+  Verlauf lösen keinen Komplett-Neuladen der Daten mehr bei anderen Nutzern aus.
+- Zufällige Verzögerung beim automatischen Abgleich verhindert, dass mehrere gleichzeitig
+  geöffnete Sitzungen sich gegenseitig ausbremsen.
+- Kleinere Robustheitsfixes rund um Team-Namen und Fehlerprotokollierung.
 
 ## v0.90 (2026-06-29)
 
