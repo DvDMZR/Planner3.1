@@ -1,5 +1,5 @@
 // ─── TEAM-SPLIT FILE LAYOUT ───────────────────────────────────────────────────
-const APP_VERSION = 'v0.91';
+const APP_VERSION = 'v0.911';
 const DEFAULT_TEAMS = ['AS', 'CMS', 'CSS', 'HM', 'I&C', 'Other'];
 const PLANNER_DATA_DIR = 'planner-data';
 const SCHEMA_VERSION = 4;
@@ -77,6 +77,30 @@ const ensureAdmin = async (users) => {
 
 // --- CHANGELOG ---
 const CHANGELOG_CONTENT = `# Changelog
+
+## v0.911 (2026-07-06)
+
+### Projektverwaltung: Kachel-Ansicht
+- Umschalter **Tabelle/Kacheln** in der Projektverwaltung (Tabelle bleibt Standard).
+  Kachel zeigt Farbe, Status, Typ, Land, Größe, Zeitraum und SharePoint-Link;
+  Sortierung per Dropdown statt Spaltenkopf-Klick. Gilt auch für "Vergangene Projekte".
+- Die gewählte Ansicht wird jetzt **pro Nutzer gespeichert** (wie Kompaktansicht und
+  Sprache) und beim nächsten Login automatisch wiederhergestellt.
+
+### Übersicht: Auslastungsverlauf
+- Neue Chart-Karte **"Auslastungsverlauf – letzte 8 Wochen"** unter den Stat-Kacheln:
+  Balkendiagramm der Ø-Auslastung, farbcodiert, aktuelle Woche hervorgehoben. Klick auf
+  einen Balken springt zur jeweiligen Woche in der Ressourcenplanung.
+
+### Command-Palette (Strg/⌘+K)
+- Neue Schnellsuche, erreichbar per Tastenkombination oder Sidebar-Button: durchsucht
+  Navigation, Projekte und Mitarbeiter, plus Schnellaktionen ("Neues Projekt"/"Neuer
+  Mitarbeiter" anlegen). Vollständig per Tastatur bedienbar (Pfeiltasten, Enter, Escape).
+
+### Bugfix: Einstellungen nach Reload (Admin-Account)
+- Kompaktansicht, Sprache und die neue Kachel-Einstellung wurden nach einem
+  Seiten-Reload beim Admin-Account nicht zuverlässig wiederhergestellt (ein interner
+  Platzhalter-Nutzer verhinderte das Nachladen der echten Einstellungen). Behoben.
 
 ## v0.91 (2026-07-05)
 
