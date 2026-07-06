@@ -149,8 +149,21 @@ sehr hoher Edit-Frequenz zuerst Pre-Save-Freshness-Check nachrüsten, danach
 
 ---
 
-## 4. UX/UI — bewusst zurückgestellt
+## 4. UX/UI
 
+### Umgesetzt (2026-07-06, aus der Vorschlagsliste ausgewählt)
+- **Card-Grid für die Projektverwaltung**: Umschalter Tabelle/Kacheln in
+  `setup-proj.jsx` (Tabelle bleibt Default), Kacheln für aktive Kategorien
+  und vergangene Projekte, eigene Sortier-Auswahl statt Spaltenkopf-Klick.
+- **Dashboard-Chart in der Übersicht**: Balkendiagramm „Auslastungsverlauf –
+  letzte 8 Wochen" in `overview.jsx`, farbcodiert, klickbar (springt zur
+  jeweiligen Woche in der Ressourcenplanung).
+- **Command-Palette (Strg/⌘+K)**: neue Komponente in `components.jsx`,
+  global per Tastenkombination und Sidebar-Button erreichbar; durchsucht
+  Navigation, Schnellaktionen ("Neues Projekt"/"Neuer Mitarbeiter"),
+  Projekte und Mitarbeiter.
+
+### Weiterhin bewusst zurückgestellt
 Aus dem UX-Audit (2026-07-05/06) explizit nicht umgesetzt bzw. nur als Idee
 genannt, ohne Entscheidung des Nutzers:
 
@@ -159,19 +172,13 @@ genannt, ohne Entscheidung des Nutzers:
   ~1000px wird es eng. Eigenes, größeres Thema.
 - **Eigener Datums-Picker** für die `type="date"`-Felder im Kostenpunkt-
   Dialog und im Spesen-Import. Bewusst nativ belassen (echte
-  Tagesauswahl, kein Kalenderwochen-Fall wie beim neuen `WeekPickerInput`).
+  Tagesauswahl, kein Kalenderwochen-Fall wie beim `WeekPickerInput`).
 - **Timeline-Projektsuche**: Die Timeline hat bereits Virtualisierung und
   eigene Navigation; ein zusätzliches Suchfeld war nicht Teil des Audits.
-- **Card-Grid statt Tabelle** in der Projektverwaltung (Kachel-Ansicht mit
-  Farbe/Status statt Zeilen) — nur als Idee genannt.
-- **Dashboard-Charts** in der Übersicht (z. B. Auslastungsverlauf als
-  Mini-Chart neben den Stat-Karten) — nur als Idee genannt.
-- **Dark Mode** — die App ist komplett hell gehalten, kein Toggle vorhanden.
-- **Command-Palette (⌘K)** zum schnellen Springen zwischen Ansichten — nur
-  als Idee genannt, keine Sidebar-Suche vorhanden.
-
-Keiner dieser Punkte wurde umgesetzt; sie liegen als Vorschlagsliste vor und
-warten auf eine Priorisierungsentscheidung.
+  Die neue Command-Palette deckt das Springen zu einem Projekt bereits ab.
+- **Dark Mode** — die App ist komplett hell gehalten, kein Toggle vorhanden;
+  weiterhin der mit Abstand aufwendigste Punkt der Liste (betrifft praktisch
+  jede Tailwind-Klasse in allen Views).
 
 ---
 
