@@ -54,6 +54,10 @@ function App() {
   const [language, setLanguage] = useState('de');
   const t = useMemo(() => makeT(language), [language]);
 
+  // Projektverwaltung: Tabelle vs. Kachel-Ansicht. Gleicher Persistenz-
+  // Mechanismus wie compactView/language (user.preferences, s. u.).
+  const [projViewMode, setProjViewMode] = useState('table');
+
   // Auslastung click → Ressourcen jump: target week to scroll to once
   // ResourceView mounts. Cleared after the scroll runs.
   const [scrollTarget, setScrollTarget] = useState(null);
@@ -375,7 +379,7 @@ function App() {
         return next;
       });
     }
-    // Restore the user's UI preferences (compactView + language).
+    // Restore the user's UI preferences (compactView + language + projViewMode).
     // Missing preferences mean "use last value" – nothing to apply.
     const prefs = user?.preferences;
     if (prefs && typeof prefs.compactView === 'boolean') {
@@ -383,6 +387,9 @@ function App() {
     }
     if (prefs && (prefs.language === 'de' || prefs.language === 'en')) {
       setLanguage(prefs.language);
+    }
+    if (prefs && (prefs.projViewMode === 'table' || prefs.projViewMode === 'grid')) {
+      setProjViewMode(prefs.projViewMode);
     }
     // Best-effort recovery backup. Skipped when the initial load hasn't
     // populated state yet – we'd otherwise persist a near-empty snapshot.
@@ -1110,12 +1117,19 @@ function App() {
   // On page reload, the session is restored from sessionStorage *before*
   // appUsers loads from SP. Once appUsers arrives, re-apply the stored
   // preferences for the current session user.
+  // Bug fix: appUsers' initial state is a synchronous `_needsSeed`
+  // placeholder with id 'admin' (see useState above) – when the restored
+  // session IS the admin account, `appUsers.find` matched that placeholder
+  // on the very first render, permanently latched prefsAppliedRef via the
+  // guard below, and the real preferences (loaded moments later from
+  // localStorage/SharePoint) were never applied. Skip placeholder records
+  // so this effect waits for the actual loaded record.
   const prefsAppliedRef = useRef(false);
   useEffect(() => {
     if (prefsAppliedRef.current) return;
     if (!currentUser) return;
     const full = appUsers.find(u => u.id === currentUser.id);
-    if (!full) return;
+    if (!full || full._needsSeed) return;
     prefsAppliedRef.current = true;
     const prefs = full.preferences;
     if (prefs && typeof prefs.compactView === 'boolean') {
@@ -1123,6 +1137,9 @@ function App() {
     }
     if (prefs && (prefs.language === 'de' || prefs.language === 'en')) {
       setLanguage(prefs.language);
+    }
+    if (prefs && (prefs.projViewMode === 'table' || prefs.projViewMode === 'grid')) {
+      setProjViewMode(prefs.projViewMode);
     }
   }, [appUsers, currentUser]);
 
@@ -1135,17 +1152,18 @@ function App() {
     setAppUsers(prev => {
       const cur = prev.find(p => p.id === u.id);
       if (!cur) return prev;
-      if (cur.preferences?.compactView === compactView && cur.preferences?.language === language) return prev;
+      if (cur.preferences?.compactView === compactView && cur.preferences?.language === language && cur.preferences?.projViewMode === projViewMode) return prev;
       return prev.map(p => p.id === u.id ? {
         ...p,
         preferences: {
           ...(p.preferences || {}),
           compactView,
-          language
+          language,
+          projViewMode
         }
       } : p);
     });
-  }, [compactView, language, currentUser]);
+  }, [compactView, language, projViewMode, currentUser]);
 
   // ── AUTO-BACKUP (periodic snapshot of all data to planner-data/backups/) ──
   // Runs only when SharePoint is connected. One check per minute; writes a
@@ -3279,6 +3297,7 @@ function App() {
     timelineScrollRef,
     compactView,
     scrollTarget,
+    projViewMode,
     language,
     t,
     currentUser,
@@ -3346,6 +3365,7 @@ function App() {
     setFsStatus,
     setCompactView,
     setScrollTarget,
+    setProjViewMode,
     setLanguage,
     setAppUsers,
     setAuditLog,

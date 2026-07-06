@@ -68,6 +68,7 @@ const SetupProjView = ({
     currentWeekColRef,
     resourceScrollRef,
     timelineScrollRef,
+    projViewMode,
     t
   } = s;
   const {
@@ -135,7 +136,8 @@ const SetupProjView = ({
     openInvoiceModal,
     scrollToCurrentWeek,
     requestDeleteProject,
-    openNewProjectForm
+    openNewProjectForm,
+    setProjViewMode
   } = h;
   if (selectedProjectDetails) {
     return /*#__PURE__*/React.createElement(ProjectDetailsView, {
@@ -163,11 +165,14 @@ const SetupProjView = ({
   };
   const now = getWeekString(new Date());
 
-  // ── Local state for search + per-category sort + view mode ──────────
+  // ── Local state for search + per-category sort ──────────────────────
+  // View-Modus (Tabelle/Kacheln) ist eine pro-Nutzer-Einstellung
+  // (s.projViewMode/h.setProjViewMode, siehe app.jsx) – bleibt über
+  // Tab-Wechsel und Login-Sessions hinweg erhalten.
   const [searchQuery, setSearchQuery] = React.useState('');
   const [sortConfig, setSortConfig] = React.useState({}); // { [cat]: { col, dir } }
-  const [viewMode, setViewMode] = React.useState('table'); // 'table' | 'grid'
-
+  const viewMode = projViewMode;
+  const setViewMode = setProjViewMode;
   const getSortConfig = cat => sortConfig[cat] || {
     col: null,
     dir: 'asc'
