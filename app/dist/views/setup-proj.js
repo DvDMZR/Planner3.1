@@ -134,7 +134,8 @@ const SetupProjView = ({
     buildInvoiceData,
     openInvoiceModal,
     scrollToCurrentWeek,
-    requestDeleteProject
+    requestDeleteProject,
+    openNewProjectForm
   } = h;
   if (selectedProjectDetails) {
     return /*#__PURE__*/React.createElement(ProjectDetailsView, {
@@ -162,9 +163,10 @@ const SetupProjView = ({
   };
   const now = getWeekString(new Date());
 
-  // ── Local state for search + per-category sort ──────────────────────
+  // ── Local state for search + per-category sort + view mode ──────────
   const [searchQuery, setSearchQuery] = React.useState('');
   const [sortConfig, setSortConfig] = React.useState({}); // { [cat]: { col, dir } }
+  const [viewMode, setViewMode] = React.useState('table'); // 'table' | 'grid'
 
   const getSortConfig = cat => sortConfig[cat] || {
     col: null,
@@ -311,6 +313,100 @@ const SetupProjView = ({
       className: "text-rose-600 text-xs font-medium hover:text-rose-700"
     }, t('btn.delete')))));
   };
+
+  // Kachel-Ansicht: dieselben Daten/Aktionen wie ProjectRow, nur als Karte.
+  const ProjectCard = ({
+    p
+  }) => {
+    const effStatus = computeAutoStatus(p);
+    const cc = resolveCountryCode(p.country);
+    const color = resolveProjectColor(p.color);
+    return /*#__PURE__*/React.createElement("div", {
+      className: "bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden group flex flex-col"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: `h-1.5 ${color.dot} shrink-0`
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "p-4 flex flex-col gap-3 flex-1"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setSelectedProjectDetails(p.id),
+      className: "text-left w-full min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-slate-900 font-medium group-hover:text-gea-600 transition-colors truncate",
+      title: p.name
+    }, p.name), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-slate-400 font-mono truncate"
+    }, p.projectNumber || '–')), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1.5 flex-wrap"
+    }, /*#__PURE__*/React.createElement(StatusBadge, {
+      status: effStatus,
+      t: t
+    }), p.projType && /*#__PURE__*/React.createElement("span", {
+      className: "text-xs bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded font-medium"
+    }, p.projType), /*#__PURE__*/React.createElement("span", {
+      className: `text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${cc === '??' ? 'bg-rose-50 border-rose-200 text-rose-600' : cc === '/' ? 'bg-slate-50 border-slate-200 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'}`,
+      title: t('proj.colCountry')
+    }, cc), p.size != null && p.size !== '' && /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-500"
+    }, "\xD8 ", p.size)), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-slate-500 font-mono"
+    }, p.startWeek, " \u2013 ", p.ibnWeek), /*#__PURE__*/React.createElement("div", {
+      className: "mt-auto pt-2 border-t border-slate-100 flex items-center justify-between"
+    }, p.sharepointLink ? /*#__PURE__*/React.createElement("a", {
+      href: p.sharepointLink,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      className: "text-slate-400 hover:text-gea-600 transition-colors",
+      title: t('proj.openSharepoint')
+    }, /*#__PURE__*/React.createElement(IconExternalLink, {
+      size: 14
+    })) : /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-3"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => handleEditProject(p),
+      className: "text-gea-600 text-xs font-medium hover:text-gea-700"
+    }, t('btn.edit')), /*#__PURE__*/React.createElement("button", {
+      onClick: () => requestDeleteProject(p.id),
+      className: "text-rose-600 text-xs font-medium hover:text-rose-700"
+    }, t('btn.delete'))))));
+  };
+
+  // Sortier-Auswahl für die Kachel-Ansicht (Tabellen-Spaltenköpfe entfallen
+  // dort) – nutzt dieselbe getSortConfig/toggleSort-Logik wie SortTh.
+  const SortSelect = ({
+    cat
+  }) => {
+    const {
+      col,
+      dir
+    } = getSortConfig(cat);
+    return /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-400"
+    }, t('proj.sortBy')), /*#__PURE__*/React.createElement("select", {
+      value: col || '',
+      onChange: e => e.target.value && toggleSort(cat, e.target.value),
+      className: "text-xs border border-slate-300 rounded px-2 py-1 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-gea-400"
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "\u2013"), /*#__PURE__*/React.createElement("option", {
+      value: "name"
+    }, t('proj.colName')), /*#__PURE__*/React.createElement("option", {
+      value: "type"
+    }, t('proj.colType')), /*#__PURE__*/React.createElement("option", {
+      value: "size"
+    }, t('proj.colSize')), /*#__PURE__*/React.createElement("option", {
+      value: "country"
+    }, t('proj.colCountry')), /*#__PURE__*/React.createElement("option", {
+      value: "status"
+    }, t('proj.colStatus')), /*#__PURE__*/React.createElement("option", {
+      value: "period"
+    }, t('proj.colPeriod'))), col && /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggleSort(cat, col),
+      className: "text-slate-400 hover:text-slate-700 p-1",
+      title: t('proj.sortDir')
+    }, dir === 'asc' ? '▲' : '▼'));
+  };
   const TableHead = ({
     cat
   }) => /*#__PURE__*/React.createElement("thead", {
@@ -376,25 +472,22 @@ const SetupProjView = ({
     className: "absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
   }, /*#__PURE__*/React.createElement(IconX, {
     size: 14
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex rounded-lg border border-slate-300 overflow-hidden shrink-0"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setViewMode('table'),
+    title: t('proj.viewTable'),
+    className: `px-2.5 py-2 transition-colors ${viewMode === 'table' ? 'bg-gea-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`
+  }, /*#__PURE__*/React.createElement(IconTable, {
+    size: 16
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setViewMode('grid'),
+    title: t('proj.viewGrid'),
+    className: `px-2.5 py-2 transition-colors border-l border-slate-300 ${viewMode === 'grid' ? 'bg-gea-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`
+  }, /*#__PURE__*/React.createElement(IconLayoutGrid, {
+    size: 16
   }))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      setEditingProjectId(null);
-      setProjForm({
-        name: '',
-        category: projCategories[0] || '',
-        projectNumber: '',
-        address: '',
-        country: '',
-        startWeek: weeks[0]?.id || '',
-        ibnWeek: weeks[10]?.id || '',
-        color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id,
-        projType: '',
-        size: '',
-        sharepointLink: '',
-        notes: ''
-      });
-      setIsProjFormOpen(true);
-    },
+    onClick: openNewProjectForm,
     className: "flex items-center gap-2 bg-gea-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors shadow-sm shrink-0"
   }, /*#__PURE__*/React.createElement(IconPlus, {
     size: 16
@@ -410,24 +503,7 @@ const SetupProjView = ({
     description: t('proj.noActiveDesc'),
     action: {
       label: t('proj.new'),
-      onClick: () => {
-        setEditingProjectId(null);
-        setProjForm({
-          name: '',
-          category: projCategories[0] || '',
-          projectNumber: '',
-          address: '',
-          country: '',
-          startWeek: weeks[0]?.id || '',
-          ibnWeek: weeks[10]?.id || '',
-          color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id,
-          projType: '',
-          size: '',
-          sharepointLink: '',
-          notes: ''
-        });
-        setIsProjFormOpen(true);
-      }
+      onClick: openNewProjectForm
     }
   }), q && activeProjects.length === 0 && pastProjects.length === 0 && /*#__PURE__*/React.createElement(EmptyState, {
     icon: /*#__PURE__*/React.createElement(IconSearch, {
@@ -456,13 +532,22 @@ const SetupProjView = ({
       className: "text-gea-900 font-semibold text-lg"
     }, cat), /*#__PURE__*/React.createElement("span", {
       className: "ml-2 px-2 py-0.5 bg-white border border-gea-200 rounded-full text-xs text-gea-700 font-semibold"
-    }, catProjs.length)), !isCollapsed && /*#__PURE__*/React.createElement("table", {
+    }, catProjs.length)), !isCollapsed && viewMode === 'grid' && /*#__PURE__*/React.createElement("div", {
+      className: "px-4 pt-3 flex justify-end"
+    }, /*#__PURE__*/React.createElement(SortSelect, {
+      cat: cat
+    })), !isCollapsed && (viewMode === 'table' ? /*#__PURE__*/React.createElement("table", {
       className: "w-full text-left text-sm table-fixed"
     }, /*#__PURE__*/React.createElement(TableHead, {
       cat: cat
     }), /*#__PURE__*/React.createElement("tbody", {
       className: "divide-y divide-slate-200"
     }, catProjs.map(p => /*#__PURE__*/React.createElement(ProjectRow, {
+      key: p.id,
+      p: p
+    })))) : /*#__PURE__*/React.createElement("div", {
+      className: "p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"
+    }, catProjs.map(p => /*#__PURE__*/React.createElement(ProjectCard, {
       key: p.id,
       p: p
     })))));
@@ -481,13 +566,22 @@ const SetupProjView = ({
     className: "text-slate-700 font-semibold"
   }, t('proj.pastProjects')), /*#__PURE__*/React.createElement("span", {
     className: "ml-2 px-2 py-0.5 bg-white border border-slate-300 rounded-full text-xs text-slate-600 font-semibold"
-  }, pastProjects.length)), pastProjectsExpanded && /*#__PURE__*/React.createElement("table", {
+  }, pastProjects.length)), pastProjectsExpanded && viewMode === 'grid' && /*#__PURE__*/React.createElement("div", {
+    className: "px-4 pt-3 flex justify-end"
+  }, /*#__PURE__*/React.createElement(SortSelect, {
+    cat: "__past__"
+  })), pastProjectsExpanded && (viewMode === 'table' ? /*#__PURE__*/React.createElement("table", {
     className: "w-full text-left text-sm table-fixed"
   }, /*#__PURE__*/React.createElement(TableHead, {
     cat: "__past__"
   }), /*#__PURE__*/React.createElement("tbody", {
     className: "divide-y divide-slate-200 opacity-75"
   }, sortProjects(pastProjects, '__past__').map(p => /*#__PURE__*/React.createElement(ProjectRow, {
+    key: p.id,
+    p: p
+  })))) : /*#__PURE__*/React.createElement("div", {
+    className: "p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 opacity-75"
+  }, sortProjects(pastProjects, '__past__').map(p => /*#__PURE__*/React.createElement(ProjectCard, {
     key: p.id,
     p: p
   }))))))));

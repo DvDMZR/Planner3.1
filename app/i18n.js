@@ -25,6 +25,17 @@ const TRANSLATIONS = {
         'nav.history':      'Verlauf',
         'nav.appTitle':     'Einsatzplanung',
 
+        // Command-Palette (Strg+K)
+        'cmdk.sidebarHint':   'Schnellsuche',
+        'cmdk.placeholder':   'Ansicht, Projekt oder Mitarbeiter suchen …',
+        'cmdk.noResults':     'Keine Treffer.',
+        'cmdk.groupNav':      'Navigation',
+        'cmdk.groupActions':  'Aktionen',
+        'cmdk.groupProjects': 'Projekte',
+        'cmdk.groupEmployees':'Mitarbeiter',
+        'cmdk.newProject':    'Neues Projekt anlegen',
+        'cmdk.newEmployee':   'Neuen Mitarbeiter anlegen',
+
         // Auth
         'auth.administrator': 'Administrator',
         'auth.activeUser':    'Aktiver Nutzer',
@@ -148,6 +159,11 @@ const TRANSLATIONS = {
         'proj.colNr':         'Nr.',
         'proj.colStatus':     'Status',
         'proj.colPeriod':     'Zeitraum',
+        'proj.viewTable':     'Tabellenansicht',
+        'proj.viewGrid':      'Kachelansicht',
+        'proj.sortBy':        'Sortieren:',
+        'proj.sortDir':       'Reihenfolge umkehren',
+        'proj.openSharepoint':'SharePoint öffnen',
 
         // Categories setup
         'cats.noBasicTasks':        'Keine aktiven Basic Tasks.',
@@ -508,6 +524,8 @@ const TRANSLATIONS = {
         'overview.toResource':      'Zur Ressourcenansicht – aktuelle KW',
         'overview.hoursTotal':      'h gesamt',
         'overview.costsTotal':      '€ gesamt',
+        'overview.utilTrend':       'Auslastungsverlauf – letzte 8 Wochen',
+        'overview.utilTrendHint':   'Klick auf einen Balken springt zur jeweiligen Woche',
         'util.peakDouble':          'Spitze: {pct}% – doppelt verplant',
         'util.peakOver':            'Spitze: {pct}% – Überlast',
         'util.colAvg':              'Ø Zeitraum',
@@ -608,6 +626,17 @@ const TRANSLATIONS = {
         'nav.systemExport': 'System & Export',
         'nav.history':      'History',
         'nav.appTitle':     'Deployment Planner',
+
+        // Command palette (Ctrl+K)
+        'cmdk.sidebarHint':   'Quick search',
+        'cmdk.placeholder':   'Search views, projects or employees …',
+        'cmdk.noResults':     'No results.',
+        'cmdk.groupNav':      'Navigation',
+        'cmdk.groupActions':  'Actions',
+        'cmdk.groupProjects': 'Projects',
+        'cmdk.groupEmployees':'Employees',
+        'cmdk.newProject':    'Create new project',
+        'cmdk.newEmployee':   'Create new employee',
 
         // Auth
         'auth.administrator': 'Administrator',
@@ -732,6 +761,11 @@ const TRANSLATIONS = {
         'proj.colNr':         'No.',
         'proj.colStatus':     'Status',
         'proj.colPeriod':     'Period',
+        'proj.viewTable':     'Table view',
+        'proj.viewGrid':      'Grid view',
+        'proj.sortBy':        'Sort by:',
+        'proj.sortDir':       'Reverse order',
+        'proj.openSharepoint':'Open SharePoint',
 
         // Categories setup
         'cats.noBasicTasks':        'No active basic tasks.',
@@ -1092,6 +1126,8 @@ const TRANSLATIONS = {
         'overview.toResource':      'Go to resource view – current week',
         'overview.hoursTotal':      'h total',
         'overview.costsTotal':      '€ total',
+        'overview.utilTrend':       'Utilization trend – last 8 weeks',
+        'overview.utilTrendHint':   'Click a bar to jump to that week',
         'util.peakDouble':          'Peak: {pct}% – double-booked',
         'util.peakOver':            'Peak: {pct}% – overloaded',
         'util.colAvg':              'Ø period',

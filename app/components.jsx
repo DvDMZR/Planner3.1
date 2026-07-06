@@ -39,6 +39,7 @@ const IconBookOpen = ({ className, size=20 }) => <svg xmlns="http://www.w3.org/2
 const IconSunset = ({ className, size=20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/><line x1="23" y1="22" x2="1" y2="22"/><polyline points="8 6 12 2 16 6"/></svg>;
 const IconExternalLink = ({ className, size=20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
 const IconSearch = ({ className, size=20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+const IconLayoutGrid = ({ className, size=20 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
 
 // --- SHARED UI COMPONENTS (module scope) ---
 // Bind window-keydown so pressing Escape closes the current modal. Pass the
@@ -239,6 +240,120 @@ const WeekPickerInput = ({ value, onChange, minWeek, placeholder = 'KW wählen �
                         onChange={(w) => { onChange(w); setOpen(false); }}/>
                 </div>
             )}
+        </div>
+    );
+};
+
+// --- COMMAND PALETTE (Strg/⌘+K) ---
+// Self-contained: owns its own query/keyboard-nav state. Navigation- und
+// Aktions-Einträge kommen fertig aufbereitet (auth-gated) von App(); Projekte/
+// Mitarbeiter werden hier aus den rohen Arrays gefiltert, damit App() nicht
+// bei jedem Tastendruck neu rendern muss. Daten-Gruppen (Projekte/Mitarbeiter)
+// erscheinen erst, sobald etwas getippt wurde – leere Eingabe zeigt nur
+// Navigation + Aktionen (schnelles Springen ohne Rauschen).
+const CommandPalette = ({ open, onClose, navItems, actionItems, projects, employees, onSelectProject, onSelectEmployee, t }) => {
+    const inputRef = React.useRef(null);
+    const [query, setQuery] = React.useState('');
+    const [activeIndex, setActiveIndex] = React.useState(0);
+    useEscapeToClose(open ? onClose : null);
+
+    React.useEffect(() => {
+        if (!open) return;
+        setQuery('');
+        setActiveIndex(0);
+        const timer = setTimeout(() => inputRef.current?.focus(), 10);
+        return () => clearTimeout(timer);
+    }, [open]);
+
+    const q = query.trim().toLowerCase();
+    React.useEffect(() => { setActiveIndex(0); }, [q]);
+
+    const groups = React.useMemo(() => {
+        const out = [];
+        const matches = (label) => !q || label.toLowerCase().includes(q);
+
+        const nav = (navItems || []).filter(it => matches(it.label));
+        if (nav.length) out.push({ id: 'nav', label: t('cmdk.groupNav'), items: nav });
+
+        const actions = (actionItems || []).filter(it => matches(it.label));
+        if (actions.length) out.push({ id: 'actions', label: t('cmdk.groupActions'), items: actions });
+
+        if (q) {
+            const projItems = (projects || [])
+                .filter(p => (p.name || '').toLowerCase().includes(q) || (p.projectNumber || '').toLowerCase().includes(q))
+                .slice(0, 8)
+                .map(p => ({
+                    id: 'proj-' + p.id,
+                    label: p.name,
+                    sublabel: p.category || '',
+                    icon: <span className={`w-2.5 h-2.5 rounded-full inline-block ${resolveProjectColor(p.color).dot}`}/>,
+                    onSelect: () => onSelectProject(p),
+                }));
+            if (projItems.length) out.push({ id: 'projects', label: t('cmdk.groupProjects'), items: projItems });
+
+            const empItems = (employees || [])
+                .filter(e => e.active !== false && (e.name || '').toLowerCase().includes(q))
+                .slice(0, 8)
+                .map(e => ({
+                    id: 'emp-' + e.id,
+                    label: e.name,
+                    sublabel: e.category || '',
+                    icon: <IconUser size={15}/>,
+                    onSelect: () => onSelectEmployee(e),
+                }));
+            if (empItems.length) out.push({ id: 'employees', label: t('cmdk.groupEmployees'), items: empItems });
+        }
+        return out;
+    }, [q, navItems, actionItems, projects, employees, onSelectProject, onSelectEmployee, t]);
+
+    const flatItems = React.useMemo(() => groups.flatMap(g => g.items), [groups]);
+
+    const select = (item) => { if (!item) return; item.onSelect(); onClose(); };
+
+    const onKeyDown = (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex(i => Math.min(i + 1, flatItems.length - 1)); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIndex(i => Math.max(i - 1, 0)); }
+        else if (e.key === 'Enter') { e.preventDefault(); select(flatItems[activeIndex]); }
+    };
+
+    if (!open) return null;
+    let flatIdx = -1;
+    return (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-start justify-center pt-24 p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200">
+                    <IconSearch size={16} className="text-slate-400 shrink-0"/>
+                    <input ref={inputRef} type="text" value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        onKeyDown={onKeyDown}
+                        placeholder={t('cmdk.placeholder')}
+                        className="flex-1 text-sm outline-none placeholder:text-slate-400"/>
+                    <kbd className="hidden sm:inline text-[10px] text-slate-400 border border-slate-200 rounded px-1.5 py-0.5 shrink-0">ESC</kbd>
+                </div>
+                <div className="max-h-96 overflow-y-auto py-2">
+                    {flatItems.length === 0 && (
+                        <p className="px-4 py-6 text-center text-sm text-slate-400">{t('cmdk.noResults')}</p>
+                    )}
+                    {groups.map(group => (
+                        <div key={group.id} className="mb-1">
+                            <p className="px-4 pt-2 pb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{group.label}</p>
+                            {group.items.map(item => {
+                                flatIdx++;
+                                const isActive = flatIdx === activeIndex;
+                                return (
+                                    <button key={item.id} onClick={() => select(item)}
+                                        onMouseEnter={() => setActiveIndex(flatIdx)}
+                                        className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-left transition-colors ${isActive ? 'bg-gea-50 text-gea-900' : 'text-slate-700 hover:bg-slate-50'}`}>
+                                        <span className="shrink-0 text-slate-400 flex items-center justify-center w-5">{item.icon}</span>
+                                        <span className="flex-1 min-w-0 truncate font-medium">{item.label}</span>
+                                        {item.sublabel && <span className="text-xs text-slate-400 shrink-0 max-w-[8rem] truncate">{item.sublabel}</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 };

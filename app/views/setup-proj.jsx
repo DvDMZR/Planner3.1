@@ -35,7 +35,7 @@ const SetupProjView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
-        scrollToCurrentWeek, requestDeleteProject } = h;
+        scrollToCurrentWeek, requestDeleteProject, openNewProjectForm } = h;
         if (selectedProjectDetails) {
             return <ProjectDetailsView s={s} h={h}/>;
         }
@@ -48,9 +48,10 @@ const SetupProjView = ({ s, h }) => {
 
         const now = getWeekString(new Date());
 
-        // ── Local state for search + per-category sort ──────────────────────
+        // ── Local state for search + per-category sort + view mode ──────────
         const [searchQuery, setSearchQuery] = React.useState('');
         const [sortConfig, setSortConfig] = React.useState({});  // { [cat]: { col, dir } }
+        const [viewMode, setViewMode] = React.useState('table'); // 'table' | 'grid'
 
         const getSortConfig = (cat) => sortConfig[cat] || { col: null, dir: 'asc' };
         const toggleSort = (cat, col) => {
@@ -143,6 +144,66 @@ const SetupProjView = ({ s, h }) => {
             );
         };
 
+        // Kachel-Ansicht: dieselben Daten/Aktionen wie ProjectRow, nur als Karte.
+        const ProjectCard = ({ p }) => {
+            const effStatus = computeAutoStatus(p);
+            const cc = resolveCountryCode(p.country);
+            const color = resolveProjectColor(p.color);
+            return (
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden group flex flex-col">
+                    <div className={`h-1.5 ${color.dot} shrink-0`}></div>
+                    <div className="p-4 flex flex-col gap-3 flex-1">
+                        <button onClick={() => setSelectedProjectDetails(p.id)} className="text-left w-full min-w-0">
+                            <div className="text-slate-900 font-medium group-hover:text-gea-600 transition-colors truncate" title={p.name}>{p.name}</div>
+                            <div className="text-xs text-slate-400 font-mono truncate">{p.projectNumber || '–'}</div>
+                        </button>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <StatusBadge status={effStatus} t={t}/>
+                            {p.projType && <span className="text-xs bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded font-medium">{p.projType}</span>}
+                            <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${cc === '??' ? 'bg-rose-50 border-rose-200 text-rose-600' : cc === '/' ? 'bg-slate-50 border-slate-200 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'}`} title={t('proj.colCountry')}>{cc}</span>
+                            {p.size != null && p.size !== '' && <span className="text-xs text-slate-500">Ø {p.size}</span>}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono">{p.startWeek} – {p.ibnWeek}</div>
+                        <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between">
+                            {p.sharepointLink
+                                ? <a href={p.sharepointLink} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-gea-600 transition-colors" title={t('proj.openSharepoint')}><IconExternalLink size={14}/></a>
+                                : <span/>}
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => handleEditProject(p)} className="text-gea-600 text-xs font-medium hover:text-gea-700">{t('btn.edit')}</button>
+                                <button onClick={() => requestDeleteProject(p.id)} className="text-rose-600 text-xs font-medium hover:text-rose-700">{t('btn.delete')}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Sortier-Auswahl für die Kachel-Ansicht (Tabellen-Spaltenköpfe entfallen
+        // dort) – nutzt dieselbe getSortConfig/toggleSort-Logik wie SortTh.
+        const SortSelect = ({ cat }) => {
+            const { col, dir } = getSortConfig(cat);
+            return (
+                <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">{t('proj.sortBy')}</span>
+                    <select value={col || ''} onChange={e => e.target.value && toggleSort(cat, e.target.value)}
+                        className="text-xs border border-slate-300 rounded px-2 py-1 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-gea-400">
+                        <option value="">–</option>
+                        <option value="name">{t('proj.colName')}</option>
+                        <option value="type">{t('proj.colType')}</option>
+                        <option value="size">{t('proj.colSize')}</option>
+                        <option value="country">{t('proj.colCountry')}</option>
+                        <option value="status">{t('proj.colStatus')}</option>
+                        <option value="period">{t('proj.colPeriod')}</option>
+                    </select>
+                    {col && (
+                        <button onClick={() => toggleSort(cat, col)} className="text-slate-400 hover:text-slate-700 p-1" title={t('proj.sortDir')}>
+                            {dir === 'asc' ? '▲' : '▼'}
+                        </button>
+                    )}
+                </div>
+            );
+        };
+
         const TableHead = ({ cat }) => (
             <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
@@ -176,12 +237,18 @@ const SetupProjView = ({ s, h }) => {
                                     />
                                     {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><IconX size={14}/></button>}
                                 </div>
+                                <div className="flex rounded-lg border border-slate-300 overflow-hidden shrink-0">
+                                    <button onClick={() => setViewMode('table')} title={t('proj.viewTable')}
+                                        className={`px-2.5 py-2 transition-colors ${viewMode === 'table' ? 'bg-gea-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                                        <IconTable size={16}/>
+                                    </button>
+                                    <button onClick={() => setViewMode('grid')} title={t('proj.viewGrid')}
+                                        className={`px-2.5 py-2 transition-colors border-l border-slate-300 ${viewMode === 'grid' ? 'bg-gea-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                                        <IconLayoutGrid size={16}/>
+                                    </button>
+                                </div>
                                 <button
-                                    onClick={() => {
-                                        setEditingProjectId(null);
-                                        setProjForm({ name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id, projType: '', size: '', sharepointLink: '', notes: '' });
-                                        setIsProjFormOpen(true);
-                                    }}
+                                    onClick={openNewProjectForm}
                                     className="flex items-center gap-2 bg-gea-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gea-700 transition-colors shadow-sm shrink-0">
                                     <IconPlus size={16}/> {t('proj.new')}
                                 </button>
@@ -199,11 +266,7 @@ const SetupProjView = ({ s, h }) => {
                                 icon={<IconBriefcase size={32}/>}
                                 title={t('proj.noActive')}
                                 description={t('proj.noActiveDesc')}
-                                action={{ label: t('proj.new'), onClick: () => {
-                                    setEditingProjectId(null);
-                                    setProjForm({ name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id, projType: '', size: '', sharepointLink: '', notes: '' });
-                                    setIsProjFormOpen(true);
-                                } }}
+                                action={{ label: t('proj.new'), onClick: openNewProjectForm }}
                             />
                         )}
                         {q && activeProjects.length === 0 && pastProjects.length === 0 && (
@@ -220,13 +283,24 @@ const SetupProjView = ({ s, h }) => {
                                         <span className="text-gea-900 font-semibold text-lg">{cat}</span>
                                         <span className="ml-2 px-2 py-0.5 bg-white border border-gea-200 rounded-full text-xs text-gea-700 font-semibold">{catProjs.length}</span>
                                     </button>
+                                    {!isCollapsed && viewMode === 'grid' && (
+                                        <div className="px-4 pt-3 flex justify-end">
+                                            <SortSelect cat={cat}/>
+                                        </div>
+                                    )}
                                     {!isCollapsed && (
-                                        <table className="w-full text-left text-sm table-fixed">
-                                            <TableHead cat={cat}/>
-                                            <tbody className="divide-y divide-slate-200">
-                                                {catProjs.map(p => <ProjectRow key={p.id} p={p}/>)}
-                                            </tbody>
-                                        </table>
+                                        viewMode === 'table' ? (
+                                            <table className="w-full text-left text-sm table-fixed">
+                                                <TableHead cat={cat}/>
+                                                <tbody className="divide-y divide-slate-200">
+                                                    {catProjs.map(p => <ProjectRow key={p.id} p={p}/>)}
+                                                </tbody>
+                                            </table>
+                                        ) : (
+                                            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                                                {catProjs.map(p => <ProjectCard key={p.id} p={p}/>)}
+                                            </div>
+                                        )
                                     )}
                                 </div>
                             );
@@ -241,13 +315,24 @@ const SetupProjView = ({ s, h }) => {
                                     <span className="text-slate-700 font-semibold">{t('proj.pastProjects')}</span>
                                     <span className="ml-2 px-2 py-0.5 bg-white border border-slate-300 rounded-full text-xs text-slate-600 font-semibold">{pastProjects.length}</span>
                                 </button>
+                                {pastProjectsExpanded && viewMode === 'grid' && (
+                                    <div className="px-4 pt-3 flex justify-end">
+                                        <SortSelect cat="__past__"/>
+                                    </div>
+                                )}
                                 {pastProjectsExpanded && (
-                                    <table className="w-full text-left text-sm table-fixed">
-                                        <TableHead cat="__past__"/>
-                                        <tbody className="divide-y divide-slate-200 opacity-75">
-                                            {sortProjects(pastProjects, '__past__').map(p => <ProjectRow key={p.id} p={p}/>)}
-                                        </tbody>
-                                    </table>
+                                    viewMode === 'table' ? (
+                                        <table className="w-full text-left text-sm table-fixed">
+                                            <TableHead cat="__past__"/>
+                                            <tbody className="divide-y divide-slate-200 opacity-75">
+                                                {sortProjects(pastProjects, '__past__').map(p => <ProjectRow key={p.id} p={p}/>)}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 opacity-75">
+                                            {sortProjects(pastProjects, '__past__').map(p => <ProjectCard key={p.id} p={p}/>)}
+                                        </div>
+                                    )
                                 )}
                             </div>
                         )}

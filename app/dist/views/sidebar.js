@@ -145,7 +145,8 @@ const _SidebarBase = ({
     logoutUser,
     setIsLoginModalOpen,
     requestConfirm,
-    setLanguage
+    setLanguage,
+    setIsCommandPaletteOpen
   } = h;
   const isActive = !!currentUser;
   const isAdmin = currentUser?.role === 'admin';
@@ -218,7 +219,16 @@ const _SidebarBase = ({
     size: 12
   }), " ", APP_VERSION))))), /*#__PURE__*/React.createElement("nav", {
     className: "flex-1 py-4 space-y-0.5 px-3 overflow-y-auto"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setIsCommandPaletteOpen(true),
+    className: "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gea-400 border border-gea-700 hover:bg-gea-800 hover:text-white hover:border-gea-600 transition-colors"
+  }, /*#__PURE__*/React.createElement(IconSearch, {
+    size: 15
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "flex-1 text-left"
+  }, t('cmdk.sidebarHint')), /*#__PURE__*/React.createElement("kbd", {
+    className: "text-[10px] border border-gea-600 rounded px-1.5 py-0.5 text-gea-500"
+  }, "\u2318K")), /*#__PURE__*/React.createElement("div", {
     className: "text-xs text-gea-500 uppercase tracking-wider mb-2 px-3 mt-4 font-semibold"
   }, t('nav.section.planning')), tabBtn('resource', t('nav.resources'), /*#__PURE__*/React.createElement(IconUsers, {
     size: 18

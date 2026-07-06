@@ -943,6 +943,45 @@ const IconSearch = ({
   x2: "16.65",
   y2: "16.65"
 }));
+const IconLayoutGrid = ({
+  className,
+  size = 20
+}) => /*#__PURE__*/React.createElement("svg", {
+  xmlns: "http://www.w3.org/2000/svg",
+  width: size,
+  height: size,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  className: className
+}, /*#__PURE__*/React.createElement("rect", {
+  x: "3",
+  y: "3",
+  width: "7",
+  height: "7",
+  rx: "1"
+}), /*#__PURE__*/React.createElement("rect", {
+  x: "14",
+  y: "3",
+  width: "7",
+  height: "7",
+  rx: "1"
+}), /*#__PURE__*/React.createElement("rect", {
+  x: "3",
+  y: "14",
+  width: "7",
+  height: "7",
+  rx: "1"
+}), /*#__PURE__*/React.createElement("rect", {
+  x: "14",
+  y: "14",
+  width: "7",
+  height: "7",
+  rx: "1"
+}));
 
 // --- SHARED UI COMPONENTS (module scope) ---
 // Bind window-keydown so pressing Escape closes the current modal. Pass the
@@ -1193,6 +1232,154 @@ const WeekPickerInput = ({
       setOpen(false);
     }
   })));
+};
+
+// --- COMMAND PALETTE (Strg/⌘+K) ---
+// Self-contained: owns its own query/keyboard-nav state. Navigation- und
+// Aktions-Einträge kommen fertig aufbereitet (auth-gated) von App(); Projekte/
+// Mitarbeiter werden hier aus den rohen Arrays gefiltert, damit App() nicht
+// bei jedem Tastendruck neu rendern muss. Daten-Gruppen (Projekte/Mitarbeiter)
+// erscheinen erst, sobald etwas getippt wurde – leere Eingabe zeigt nur
+// Navigation + Aktionen (schnelles Springen ohne Rauschen).
+const CommandPalette = ({
+  open,
+  onClose,
+  navItems,
+  actionItems,
+  projects,
+  employees,
+  onSelectProject,
+  onSelectEmployee,
+  t
+}) => {
+  const inputRef = React.useRef(null);
+  const [query, setQuery] = React.useState('');
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  useEscapeToClose(open ? onClose : null);
+  React.useEffect(() => {
+    if (!open) return;
+    setQuery('');
+    setActiveIndex(0);
+    const timer = setTimeout(() => inputRef.current?.focus(), 10);
+    return () => clearTimeout(timer);
+  }, [open]);
+  const q = query.trim().toLowerCase();
+  React.useEffect(() => {
+    setActiveIndex(0);
+  }, [q]);
+  const groups = React.useMemo(() => {
+    const out = [];
+    const matches = label => !q || label.toLowerCase().includes(q);
+    const nav = (navItems || []).filter(it => matches(it.label));
+    if (nav.length) out.push({
+      id: 'nav',
+      label: t('cmdk.groupNav'),
+      items: nav
+    });
+    const actions = (actionItems || []).filter(it => matches(it.label));
+    if (actions.length) out.push({
+      id: 'actions',
+      label: t('cmdk.groupActions'),
+      items: actions
+    });
+    if (q) {
+      const projItems = (projects || []).filter(p => (p.name || '').toLowerCase().includes(q) || (p.projectNumber || '').toLowerCase().includes(q)).slice(0, 8).map(p => ({
+        id: 'proj-' + p.id,
+        label: p.name,
+        sublabel: p.category || '',
+        icon: /*#__PURE__*/React.createElement("span", {
+          className: `w-2.5 h-2.5 rounded-full inline-block ${resolveProjectColor(p.color).dot}`
+        }),
+        onSelect: () => onSelectProject(p)
+      }));
+      if (projItems.length) out.push({
+        id: 'projects',
+        label: t('cmdk.groupProjects'),
+        items: projItems
+      });
+      const empItems = (employees || []).filter(e => e.active !== false && (e.name || '').toLowerCase().includes(q)).slice(0, 8).map(e => ({
+        id: 'emp-' + e.id,
+        label: e.name,
+        sublabel: e.category || '',
+        icon: /*#__PURE__*/React.createElement(IconUser, {
+          size: 15
+        }),
+        onSelect: () => onSelectEmployee(e)
+      }));
+      if (empItems.length) out.push({
+        id: 'employees',
+        label: t('cmdk.groupEmployees'),
+        items: empItems
+      });
+    }
+    return out;
+  }, [q, navItems, actionItems, projects, employees, onSelectProject, onSelectEmployee, t]);
+  const flatItems = React.useMemo(() => groups.flatMap(g => g.items), [groups]);
+  const select = item => {
+    if (!item) return;
+    item.onSelect();
+    onClose();
+  };
+  const onKeyDown = e => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(i => Math.min(i + 1, flatItems.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      select(flatItems[activeIndex]);
+    }
+  };
+  if (!open) return null;
+  let flatIdx = -1;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-start justify-center pt-24 p-4",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 px-4 py-3 border-b border-slate-200"
+  }, /*#__PURE__*/React.createElement(IconSearch, {
+    size: 16,
+    className: "text-slate-400 shrink-0"
+  }), /*#__PURE__*/React.createElement("input", {
+    ref: inputRef,
+    type: "text",
+    value: query,
+    onChange: e => setQuery(e.target.value),
+    onKeyDown: onKeyDown,
+    placeholder: t('cmdk.placeholder'),
+    className: "flex-1 text-sm outline-none placeholder:text-slate-400"
+  }), /*#__PURE__*/React.createElement("kbd", {
+    className: "hidden sm:inline text-[10px] text-slate-400 border border-slate-200 rounded px-1.5 py-0.5 shrink-0"
+  }, "ESC")), /*#__PURE__*/React.createElement("div", {
+    className: "max-h-96 overflow-y-auto py-2"
+  }, flatItems.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "px-4 py-6 text-center text-sm text-slate-400"
+  }, t('cmdk.noResults')), groups.map(group => /*#__PURE__*/React.createElement("div", {
+    key: group.id,
+    className: "mb-1"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "px-4 pt-2 pb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider"
+  }, group.label), group.items.map(item => {
+    flatIdx++;
+    const isActive = flatIdx === activeIndex;
+    return /*#__PURE__*/React.createElement("button", {
+      key: item.id,
+      onClick: () => select(item),
+      onMouseEnter: () => setActiveIndex(flatIdx),
+      className: `w-full flex items-center gap-3 px-4 py-2 text-sm text-left transition-colors ${isActive ? 'bg-gea-50 text-gea-900' : 'text-slate-700 hover:bg-slate-50'}`
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "shrink-0 text-slate-400 flex items-center justify-center w-5"
+    }, item.icon), /*#__PURE__*/React.createElement("span", {
+      className: "flex-1 min-w-0 truncate font-medium"
+    }, item.label), item.sublabel && /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-400 shrink-0 max-w-[8rem] truncate"
+    }, item.sublabel));
+  }))))));
 };
 
 // --- EXTRACTED MODAL COMPONENTS (module scope) ---
