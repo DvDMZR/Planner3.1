@@ -16,6 +16,7 @@ const SetupProjView = ({ s, h }) => {
         activeEmployees, activeEmpsByCategory, activeEmpCategories,
         projectsByCategory, projCategoriesFromProjects, timelineWeeks,
         currentWeekColRef, resourceScrollRef, timelineScrollRef,
+        projViewMode,
         t } = s;
     const { setActiveTab, setEmployees, setProjects, setAssignments,
         setCostItems, setEmpCategories, setProjCategories, setBasicTasks,
@@ -35,7 +36,8 @@ const SetupProjView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
-        scrollToCurrentWeek, requestDeleteProject, openNewProjectForm } = h;
+        scrollToCurrentWeek, requestDeleteProject, openNewProjectForm,
+        setProjViewMode } = h;
         if (selectedProjectDetails) {
             return <ProjectDetailsView s={s} h={h}/>;
         }
@@ -48,10 +50,14 @@ const SetupProjView = ({ s, h }) => {
 
         const now = getWeekString(new Date());
 
-        // ── Local state for search + per-category sort + view mode ──────────
+        // ── Local state for search + per-category sort ──────────────────────
+        // View-Modus (Tabelle/Kacheln) ist eine pro-Nutzer-Einstellung
+        // (s.projViewMode/h.setProjViewMode, siehe app.jsx) – bleibt über
+        // Tab-Wechsel und Login-Sessions hinweg erhalten.
         const [searchQuery, setSearchQuery] = React.useState('');
         const [sortConfig, setSortConfig] = React.useState({});  // { [cat]: { col, dir } }
-        const [viewMode, setViewMode] = React.useState('table'); // 'table' | 'grid'
+        const viewMode = projViewMode;
+        const setViewMode = setProjViewMode;
 
         const getSortConfig = (cat) => sortConfig[cat] || { col: null, dir: 'asc' };
         const toggleSort = (cat, col) => {
