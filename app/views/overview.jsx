@@ -36,7 +36,7 @@ const OverviewView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
-        scrollToCurrentWeek } = h;
+        scrollToCurrentWeek, scrollToWeekById, openNewProjectForm } = h;
         const fmt = n => n.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         const currentWeekStr = getWeekString(new Date());
         const activeEmps = activeEmployees;
@@ -49,6 +49,23 @@ const OverviewView = ({ s, h }) => {
             const avg = activeEmps.length > 0 ? Math.round(utils.reduce((a, b) => a + b, 0) / activeEmps.length) : 0;
             return { avgUtil: avg, overbookedCount: utils.filter(u => u > 100).length };
         }, [activeEmps, getUtilization, currentWeekStr]);
+
+        // Auslastungsverlauf der letzten 8 Wochen (Ø über alle aktiven MA je
+        // Woche) – dieselbe Formel wie avgUtil oben, nur pro Woche wiederholt.
+        const utilTrend = React.useMemo(() => {
+            const out = [];
+            for (let i = 7; i >= 0; i--) {
+                const week = addWeeks(currentWeekStr, -i);
+                const utils = activeEmps.map(e => getUtilization(e.id, week).total);
+                const avg = activeEmps.length > 0 ? Math.round(utils.reduce((a, b) => a + b, 0) / activeEmps.length) : 0;
+                out.push({ week, avg });
+            }
+            return out;
+        }, [activeEmps, getUtilization, currentWeekStr]);
+        const jumpToWeek = (week) => {
+            setActiveTab('resource');
+            setTimeout(() => scrollToWeekById(resourceScrollRef, timelineWeeks, week, 140), 120);
+        };
 
         const rows = React.useMemo(() => projects.filter(p => ['active', 'planned'].includes(computeAutoStatus(p))).map(p => {
             const projAss = assignmentsByProject.get(p.id) || [];
@@ -114,6 +131,32 @@ const OverviewView = ({ s, h }) => {
                             <p className="text-xs text-slate-500 mt-1">{overbookedCount > 0 ? t('overview.overloadedCount') : t('overview.allOk')}</p>
                         </div>
                     </div>
+
+                    <div className="bg-white border border-slate-300 rounded-xl p-5 shadow-md">
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('overview.utilTrend')}</p>
+                            <span className="text-xs text-slate-400">{t('overview.utilTrendHint')}</span>
+                        </div>
+                        <div className="flex items-end gap-2">
+                            {utilTrend.map(({ week, avg }) => {
+                                const isCurrent = week === currentWeekStr;
+                                const barColor = avg >= 100 ? 'bg-rose-500' : avg >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+                                const heightPct = Math.max(4, Math.min(100, (avg / 150) * 100));
+                                return (
+                                    <button key={week} onClick={() => jumpToWeek(week)}
+                                        title={`${formatKW(week)}: ${avg}%`}
+                                        className="flex-1 flex flex-col items-center gap-1.5 group">
+                                        <div className="w-full h-16 bg-slate-50 rounded flex items-end overflow-hidden">
+                                            <div className={`w-full ${barColor} transition-all group-hover:opacity-80 ${isCurrent ? 'ring-2 ring-gea-500 ring-inset' : ''}`}
+                                                style={{ height: `${heightPct}%` }}></div>
+                                        </div>
+                                        <span className={`text-[10px] ${isCurrent ? 'text-gea-700 font-bold' : 'text-slate-400'}`}>{week.split('-W')[1]}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl text-gea-800 font-semibold">{t('overview.title')}</h2>
                         <div className="flex items-center gap-4 text-sm text-slate-500">
@@ -184,7 +227,7 @@ const OverviewView = ({ s, h }) => {
                                             icon={<IconBriefcase size={32}/>}
                                             title={t('overview.noProjects')}
                                             description={t('overview.noProjectsDesc')}
-                                            action={{ label: t('proj.new'), onClick: () => { setActiveTab('setup_proj'); setEditingProjectId(null); setIsProjFormOpen(true); } }}
+                                            action={{ label: t('proj.new'), onClick: () => { setActiveTab('setup_proj'); openNewProjectForm(); } }}
                                         />
                                     </td></tr>
                                 )}

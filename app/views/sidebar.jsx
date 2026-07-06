@@ -38,7 +38,7 @@ const _SidebarBase = ({ s, h }) => {
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
         scrollToCurrentWeek, reconnectSharePoint,
         loginUser, logoutUser, setIsLoginModalOpen, requestConfirm,
-        setLanguage } = h;
+        setLanguage, setIsCommandPaletteOpen } = h;
 
     const isActive = !!currentUser;
     const isAdmin = currentUser?.role === 'admin';
@@ -104,6 +104,12 @@ const _SidebarBase = ({ s, h }) => {
                 </div>
             </div>
             <nav className="flex-1 py-4 space-y-0.5 px-3 overflow-y-auto">
+                <button onClick={() => setIsCommandPaletteOpen(true)}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gea-400 border border-gea-700 hover:bg-gea-800 hover:text-white hover:border-gea-600 transition-colors">
+                    <IconSearch size={15}/>
+                    <span className="flex-1 text-left">{t('cmdk.sidebarHint')}</span>
+                    <kbd className="text-[10px] border border-gea-600 rounded px-1.5 py-0.5 text-gea-500">⌘K</kbd>
+                </button>
                 <div className="text-xs text-gea-500 uppercase tracking-wider mb-2 px-3 mt-4 font-semibold">{t('nav.section.planning')}</div>
                 {tabBtn('resource', t('nav.resources'), <IconUsers size={18}/>)}
                 {tabBtn('project', t('nav.projects'), <IconGanttChart size={18}/>, () => { setActiveTab('project'); setSelectedProject(projects[0]); setSelectedProjectDetails(null); })}

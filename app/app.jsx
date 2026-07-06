@@ -75,6 +75,7 @@ function App() {
     const [invoiceRecipient, setInvoiceRecipient] = useState('');
     const [isProjFormOpen, setIsProjFormOpen] = useState(false);
     const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [timelineYear, setTimelineYear] = useState(new Date().getFullYear());
     const currentWeekColRef = useRef(null);
     const resourceScrollRef = useRef(null);
@@ -186,10 +187,26 @@ function App() {
     const closeHelp        = useCallback(() => setIsHelpModalOpen(false), []);
     const closeInvoice     = useCallback(() => setIsInvoiceModalOpen(false), []);
     const closeChangelog   = useCallback(() => setIsChangelogOpen(false), []);
+    // CommandPalette ruft useEscapeToClose bereits selbst auf (siehe components.jsx).
+    const closeCommandPalette = useCallback(() => setIsCommandPaletteOpen(false), []);
     useEscapeToClose(isProjFormOpen    ? closeProjForm  : null);
     useEscapeToClose(isHelpModalOpen   ? closeHelp      : null);
     useEscapeToClose(isInvoiceModalOpen ? closeInvoice  : null);
     useEscapeToClose(isChangelogOpen   ? closeChangelog : null);
+
+    // Globaler Tastatur-Shortcut Strg/⌘+K öffnet/schließt die Command-Palette,
+    // unabhängig davon, wo der Fokus gerade liegt (überschreibt ggf. den
+    // Browser-Standard wie Adressleisten-Suche).
+    useEffect(() => {
+        const onKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                setIsCommandPaletteOpen(open => !open);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
 
     // Loaded meta.schemaVersion if it is *newer* than this build understands.
     // Filled during loadData and read by a one-shot effect below.
@@ -1806,6 +1823,26 @@ function App() {
         });
     }, [computeDeleteDependents, performEmployeeDelete]);
 
+    // Öffnet das Projekt-Formular mit einem frischen Default-Formular (nicht
+    // Bearbeiten). Ersetzt die zuvor dreifach duplizierte Inline-Definition
+    // (Toolbar-Button + Empty-State in setup-proj.jsx, Empty-State in
+    // overview.jsx) – Letztere ließ projForm zuvor sogar unverändert stehen
+    // (stiller Bug: zeigte beim ersten Öffnen aus der Übersicht ggf. Reste
+    // eines vorherigen Bearbeitungsvorgangs).
+    const openNewProjectForm = useCallback(() => {
+        const nextColorId = PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id;
+        setEditingProjectId(null);
+        setProjForm({ name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', sharepointLink: '', notes: '' });
+        setIsProjFormOpen(true);
+    }, [projects.length, projCategories, weeks]);
+
+    // Analog für Mitarbeiter – neues Formular öffnen (nicht Bearbeiten).
+    const openNewEmployeeForm = useCallback(() => {
+        setEditingEmpId(null);
+        setEmpForm({ name: '', category: empCategories[0] || '', weeklyHours: HOURS_PER_WEEK, email: '', role: '', notes: '' });
+        setIsEmpFormOpen(true);
+    }, [empCategories]);
+
     const confirmCascadeDelete = useCallback(() => {
         const c = cascadeConfirm;
         if (!c) return;
@@ -2644,7 +2681,7 @@ function App() {
         setAssignContext, setIsCostItemModalOpen, setEditingCostItem,
         setIsCopyModalOpen, setCopyContext, setIsDeleteMode, setPastProjectsExpanded,
         setIsInvoiceModalOpen, setInvoiceSelection, setInvoiceRecipient,
-        setIsProjFormOpen, setIsHelpModalOpen, setTimelineYear, setEmpForm,
+        setIsProjFormOpen, setIsHelpModalOpen, setIsCommandPaletteOpen, setTimelineYear, setEmpForm,
         setEditingEmpId, setIsEmpFormOpen, setProjForm, setEditingProjectId, setNewEmpCat,
         setNewProjCat, setNewBasicTask, setNewOfftimeTask, setExpandedSetupCats,
         setSyncStatus, setFsStatus,
@@ -2661,6 +2698,7 @@ function App() {
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
         scrollToCurrentWeek, scrollToWeekById, reconnectSharePoint,
         requestDeleteProject, requestDeleteEmployee,
+        openNewProjectForm, openNewEmployeeForm,
     }), [
         // useState setters are stable – no deps needed for those.
         // Only useCallback refs with real deps need listing:
@@ -2670,7 +2708,65 @@ function App() {
         scrollToWeekById, handleSaveAssignment, handleDeleteAssignment,
         handleDeleteAssignmentSeries, handleDrop, runBackup,
         requestDeleteProject, requestDeleteEmployee,
+        openNewProjectForm, openNewEmployeeForm,
     ]);
+
+    // Command-Palette (Strg/⌘+K): Navigations- und Aktions-Einträge, gleiche
+    // Auth-Gating-Logik wie die Sidebar (Auslastung/Übersicht/Verwaltung nur
+    // für eingeloggte Nutzer). Projekte/Mitarbeiter werden direkt aus den
+    // Rohdaten in der Komponente selbst gefiltert (siehe components.jsx).
+    const commandNavItems = useMemo(() => {
+        const items = [
+            { id: 'nav-resource', label: t('nav.resources'), icon: <IconUsers size={16}/>,
+                onSelect: () => setActiveTab('resource') },
+            { id: 'nav-project', label: t('nav.projects'), icon: <IconGanttChart size={16}/>,
+                onSelect: () => { setActiveTab('project'); setSelectedProject(projects[0]); setSelectedProjectDetails(null); } },
+            { id: 'nav-support', label: t('nav.support'), icon: <IconLifebuoy size={16}/>,
+                onSelect: () => setActiveTab('support') },
+            { id: 'nav-offtime', label: t('nav.absences'), icon: <IconCalendar size={16}/>,
+                onSelect: () => setActiveTab('offtime') },
+            { id: 'nav-training', label: t('nav.trainings'), icon: <IconBookOpen size={16}/>,
+                onSelect: () => setActiveTab('training') },
+        ];
+        if (currentUser) {
+            items.push(
+                { id: 'nav-utilization', label: t('nav.utilization'), icon: <IconBarChart size={16}/>,
+                    onSelect: () => setActiveTab('utilization') },
+                { id: 'nav-overview', label: t('nav.overview'), icon: <IconTable size={16}/>,
+                    onSelect: () => setActiveTab('overview') },
+                { id: 'nav-setup-emp', label: t('nav.employees'), icon: <IconUser size={16}/>,
+                    onSelect: () => setActiveTab('setup_emp') },
+                { id: 'nav-setup-proj', label: t('nav.projects') + ' (' + t('nav.section.admin') + ')', icon: <IconBriefcase size={16}/>,
+                    onSelect: () => setActiveTab('setup_proj') },
+                { id: 'nav-setup-cats', label: t('nav.categories'), icon: <IconTag size={16}/>,
+                    onSelect: () => setActiveTab('setup_cats') },
+                { id: 'nav-data', label: t('nav.systemExport'), icon: <IconSettings size={16}/>,
+                    onSelect: () => setActiveTab('data') },
+                { id: 'nav-audit', label: t('nav.history'), icon: <IconHistory size={16}/>,
+                    onSelect: () => setActiveTab('audit') },
+            );
+        }
+        return items;
+    }, [currentUser, projects, t]);
+
+    const commandActionItems = useMemo(() => {
+        if (!currentUser) return [];
+        return [
+            { id: 'action-new-project', label: t('cmdk.newProject'), icon: <IconPlus size={16}/>,
+                onSelect: () => { setActiveTab('setup_proj'); openNewProjectForm(); } },
+            { id: 'action-new-employee', label: t('cmdk.newEmployee'), icon: <IconPlus size={16}/>,
+                onSelect: () => { setActiveTab('setup_emp'); openNewEmployeeForm(); } },
+        ];
+    }, [currentUser, t, openNewProjectForm, openNewEmployeeForm]);
+
+    const commandSelectProject = useCallback((p) => {
+        setSelectedProjectDetails(p.id);
+        setActiveTab('setup_proj');
+    }, []);
+    const commandSelectEmployee = useCallback((e) => {
+        setScrollTarget({ empName: e.name });
+        setActiveTab('resource');
+    }, []);
 
     return (
         <div className="flex h-screen w-full font-sans text-slate-800 bg-white overflow-hidden">
@@ -2771,6 +2867,17 @@ function App() {
                 </div>
             )}
             {isHelpModalOpen && HelpModal()}
+            <CommandPalette
+                open={isCommandPaletteOpen}
+                onClose={closeCommandPalette}
+                navItems={commandNavItems}
+                actionItems={commandActionItems}
+                projects={projects}
+                employees={employees}
+                onSelectProject={commandSelectProject}
+                onSelectEmployee={commandSelectEmployee}
+                t={t}
+            />
 
             {/* Login Modal */}
             {isLoginModalOpen && (
