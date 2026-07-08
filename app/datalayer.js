@@ -408,10 +408,20 @@ async function saveSplitState(state, lastSaved, writeFile) {
     const sizeOf = (v) => Array.isArray(v) ? v.length
                        : (v && typeof v === 'object') ? Object.keys(v).length
                        : 0;
+    // Team-Dateien tragen genau ein Array; ein Schrumpfen auf leer ist – wie
+    // bei den GUARDED-Dateien – fast immer eine State-Load-Race (z. B. ein
+    // fehlgeschlagener Team-Datei-Read, der als [] durchgereicht wurde) und
+    // kein bewusstes "alles löschen". Preis der Absicherung: Das Löschen des
+    // ALLERLETZTEN Eintrags eines Teams wird nicht in die Datei geschrieben
+    // (Warnung im Log); beim nächsten Eintrag heilt sich der Stand.
+    const teamFileKey = (filename) =>
+        filename.startsWith('assignments-') ? 'assignments'
+        : filename.startsWith('cost-items-') ? 'costItems'
+        : null;
     const wouldWipe = (filename, payload) => {
         const prev = lastSaved[filename];
         if (!prev) return false; // never saved before – fine
-        const keys = GUARDED[filename];
+        const keys = GUARDED[filename] || (teamFileKey(filename) ? [teamFileKey(filename)] : null);
         if (!keys) return false;
         try {
             const prevObj = JSON.parse(prev);
@@ -455,13 +465,26 @@ async function saveSplitState(state, lastSaved, writeFile) {
 // Load only specific team assignment/cost-item files from SharePoint.
 // Used by the polling loop when global files (employees, projects, settings)
 // are unchanged – avoids reloading all teams when only one changed.
+// WICHTIG: Ein fehlgeschlagener Lesevorgang darf NICHT als "Datei ist leer"
+// interpretiert werden – sonst ersetzt der Poll-Merge die Team-Daten lokal
+// durch [] und der nächste Diff-Save überschreibt die Remote-Datei mit dem
+// Rumpf-Zustand (realer Datenverlust-Vorfall: alle Reisekosten eines Teams
+// verschwunden). Fehlgeschlagene Dateien werden deshalb separat gemeldet und
+// vom Aufrufer übersprungen; der nächste Poll versucht es erneut.
 async function loadChangedTeamFilesSp(ctx, changedFiles) {
     const results = await Promise.all(
-        changedFiles.map(f => spLoadFile(ctx, f).then(d => [f, d]).catch(() => [f, null]))
+        changedFiles.map(f => spLoadFile(ctx, f).then(d => [f, d, true]).catch(() => [f, null, false]))
     );
     const assignmentsByTeam = {};
     const costItemsByTeam = {};
-    results.forEach(([f, data]) => {
+    const failedFiles = [];
+    results.forEach(([f, data, ok]) => {
+        if (!ok) {
+            // changedFiles stammen aus dem Ordner-Meta – die Datei existiert,
+            // der Fehler ist transient (Throttling/Netz). Nicht anfassen.
+            failedFiles.push(f);
+            return;
+        }
         if (f.startsWith('assignments-')) {
             const team = f.slice('assignments-'.length, -'.json'.length);
             assignmentsByTeam[team] = data?.assignments || [];
@@ -470,7 +493,7 @@ async function loadChangedTeamFilesSp(ctx, changedFiles) {
             costItemsByTeam[team] = data?.costItems || [];
         }
     });
-    return { assignmentsByTeam, costItemsByTeam };
+    return { assignmentsByTeam, costItemsByTeam, failedFiles };
 }
 
 // Pre-populate `lastSaved` from a state object so the next save round

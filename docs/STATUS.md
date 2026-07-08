@@ -123,6 +123,21 @@ Analyse vom 2026-07-02, weiterhin gültig für v0.91 (an der Sync-Architektur
 hat sich seither nichts geändert).
 
 ### Umgesetzt
+- **Fix Datenverlust beim selektiven Team-Merge (2026-07-08):** Der Poll-Merge
+  entfernte bei einer remote geänderten Team-Datei die lokalen Einträge des
+  Teams anhand der VEREINIGUNG der geänderten Teams – änderte sich z. B. nur
+  `assignments-AS.json`, wurden auch alle `costItems` von AS lokal geleert und
+  vom nächsten Diff-Save als leere Datei nach SharePoint geschrieben (realer
+  Vorfall: alle Reisekosten eines Teams verschwunden). Dreifach behoben:
+  (1) Merge ersetzt nur noch Einträge, deren Team-Datei tatsächlich geladen
+  wurde; (2) fehlgeschlagene Team-Datei-Reads werden nicht mehr als "leer"
+  interpretiert, sondern übersprungen und beim nächsten Poll erneut versucht
+  (`loadChangedTeamFilesSp` → `failedFiles`); (3) `saveSplitState` verweigert
+  Writes, die eine zuvor gefüllte `assignments-*`/`cost-items-*`-Datei leeren
+  würden (Wipe-Guard wie bei employees/projects; Preis: das Löschen des
+  allerletzten Eintrags eines Teams persistiert nicht — Warnung im Log).
+  Zusätzlich ersetzt `applyRemoteSnapshot` nicht-leere lokale
+  assignments/costItems nicht mehr durch leere Remote-Stände.
 - **Selektiver Audit-Merge statt Voll-Reload**: Ändert sich nur `audit.json`
   bei einem anderen Client, wird sie selektiv geladen und per
   `mergeAuditLogs` gemergt statt einen kompletten Reload aller Dateien

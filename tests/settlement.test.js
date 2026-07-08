@@ -125,7 +125,7 @@ test('findDuplicateExpenseReport: Projekt-Scope + Warnung bei Treffer anderswo',
 });
 
 // ── buildAccountingEmail ────────────────────────────────────────────────────
-test('buildAccountingEmail: Pflichtdaten je Posten + Gesamtsumme', () => {
+test('buildAccountingEmail: Tabellenform mit Pflichtdaten je Posten + Gesamtsumme', () => {
     const items = [
         ci({ id: 'c1', empId: 'emp-1', reportKey: '943829',
              lines: [{ id: 'l', type: 'travel', amount: 100.5 }] }),
@@ -137,15 +137,21 @@ test('buildAccountingEmail: Pflichtdaten je Posten + Gesamtsumme', () => {
     assert.equal(mail.total, 150);
     assert.match(mail.subject, /2 Posten/);
     assert.match(mail.subject, /150\.00 EUR/);
+    // Tabellenkopf mit allen Pflichtspalten
+    assert.match(mail.body, /Mitarbeiter\s*\| Abrechnungsschluessel\s*\| Betrag \(EUR\)\s*\| Gutschrift auf KST\s*\| Umbuchung auf/);
     // Posten 1: Projekt-KST als Ziel (kein eigenes Gegenkonto gesetzt)
-    assert.match(mail.body, /Anna Schmidt \| Abrechnungsschluessel: 943829 \| Betrag: 100\.50 EUR \| Gutschrift auf KST: 4711 \| Umbuchung auf: 77001/);
+    assert.match(mail.body, /Anna Schmidt\s*\|\s*943829\s*\|\s*100\.50\s*\|\s*4711\s*\|\s*77001/);
     // Posten 2: eigenes Gegenkonto, fehlender reportKey → '-'
-    assert.match(mail.body, /Bernd Meier \| Abrechnungsschluessel: - \| Betrag: 49\.50 EUR \| Gutschrift auf KST: 4712 \| Umbuchung auf: 99001/);
+    assert.match(mail.body, /Bernd Meier\s*\|\s*-\s*\|\s*49\.50\s*\|\s*4712\s*\|\s*99001/);
     assert.match(mail.body, /GESAMTSUMME: 150\.00 EUR/);
+    // Spalten sind auf gleiche Breite aufgefüllt (Tabellen-Layout)
+    const rows = mail.body.split('\n').filter(l => l.includes('|') && !l.includes('---'));
+    const firstPipe = new Set(rows.map(l => l.indexOf('|')));
+    assert.equal(firstPipe.size, 1);
 });
 
 test('buildAccountingEmail: fehlende KST/Ziel-Stelle → "-"', () => {
     const items = [ci({ empId: 'emp-unbekannt', projectId: 'proj-2' })];
     const mail = buildAccountingEmail(items, employees, projects, teamKst);
-    assert.match(mail.body, /Unbekannt \| Abrechnungsschluessel: - \| Betrag: 100\.00 EUR \| Gutschrift auf KST: - \| Umbuchung auf: -/);
+    assert.match(mail.body, /Unbekannt\s*\|\s*-\s*\|\s*100\.00\s*\|\s*-\s*\|\s*-/);
 });

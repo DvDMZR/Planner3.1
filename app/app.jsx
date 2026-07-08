@@ -1104,9 +1104,16 @@ function App() {
         isRemoteUpdateRef.current = true;
         setEmployees(data.employees || []);
         setProjects(data.projects || []);
-        setAssignments(data.assignments || []);
+        // Wie bei den Kategorien/Tasks unten: nicht-leere lokale Listen nie
+        // durch leere Remote-Daten ersetzen – ein leerer Stand ist fast immer
+        // ein transienter Lade-/Teildatei-Fehler (z. B. einzelne Team-Datei
+        // nicht lesbar), kein bewusstes "alles gelöscht".
+        setAssignments(prev => (data.assignments?.length > 0 || prev.length === 0) ? (data.assignments || []) : prev);
         setExpenses(data.expenses || []);
-        if (data.costItems) setCostItems(migrateCostItems(data.costItems));
+        if (data.costItems) {
+            setCostItems(prev => (data.costItems.length > 0 || prev.length === 0)
+                ? migrateCostItems(data.costItems) : prev);
+        }
         else if (data.expenses && data.expenses.length > 0) setCostItems(migrateCostItems(migrateExpensesToCostItems(data.expenses)));
         // Guard: never overwrite non-empty local arrays with empty remote data.
         // Protects against transient load races (e.g. partial file fetches)
@@ -1274,31 +1281,36 @@ function App() {
                                 });
                             }
                         }
-                        const { assignmentsByTeam, costItemsByTeam } =
+                        const { assignmentsByTeam, costItemsByTeam, failedFiles } =
                             await loadChangedTeamFilesSp(SP_CONTEXT, changedFiles);
+                        // Fehlgeschlagene Reads (Throttling/Netz) NICHT als leere
+                        // Teams anwenden – Zustand unangetastet lassen und den
+                        // Timestamp nicht fortschreiben, damit der nächste Poll
+                        // die Datei erneut lädt. (Vorher wurden solche Teams
+                        // lokal geleert und der nächste Diff-Save überschrieb
+                        // die Remote-Datei mit dem Rumpf-Zustand → alle
+                        // Reisekosten des Teams weg.)
+                        const failedSet = new Set(failedFiles || []);
+                        const appliedFiles = changedFiles.filter(f => !failedSet.has(f));
                         const empTeamMap = new Map(
                             employeesRef.current.map(e => [e.id, e.category || 'Other'])
                         );
-                        const teamsUpdated = new Set([
-                            ...Object.keys(assignmentsByTeam),
-                            ...Object.keys(costItemsByTeam),
-                        ]);
                         setAssignments(prev => {
-                            const kept = prev.filter(a => !teamsUpdated.has(empTeamMap.get(a.empId) || 'Other'));
+                            const kept = prev.filter(a => !((empTeamMap.get(a.empId) || 'Other') in assignmentsByTeam));
                             return [...kept, ...Object.values(assignmentsByTeam).flat()];
                         });
                         setCostItems(prev => {
-                            const kept = prev.filter(c => !teamsUpdated.has(empTeamMap.get(c.empId) || 'Other'));
+                            const kept = prev.filter(c => !((empTeamMap.get(c.empId) || 'Other') in costItemsByTeam));
                             return [...kept, ...migrateCostItems(Object.values(costItemsByTeam).flat())];
                         });
                         // Update timestamps; invalidate ETags for remotely-changed files so
                         // our next write for those files uses overwrite=true (safe: we just
                         // applied the remote state, so there's no local-only version to protect).
-                        changedFiles.forEach(f => {
+                        appliedFiles.forEach(f => {
                             spFileTimestampsRef.current[f] = newMeta[f].ts;
                             delete spFileEtagsRef.current[f];
                         });
-                        changedFiles.forEach(f => {
+                        appliedFiles.forEach(f => {
                             if (f.startsWith('assignments-')) {
                                 const team = f.slice('assignments-'.length, -'.json'.length);
                                 lastSavedSpRef.current[f] = JSON.stringify({ assignments: assignmentsByTeam[team] || [] });
@@ -1307,6 +1319,9 @@ function App() {
                                 lastSavedSpRef.current[f] = JSON.stringify({ costItems: costItemsByTeam[team] || [] });
                             }
                         });
+                        if (failedSet.size > 0) {
+                            console.warn('[SP] Team-Dateien nicht lesbar, Merge übersprungen (Retry beim nächsten Poll):', [...failedSet]);
+                        }
                     }
                 } else {
                     // No remote changes – if a mid-write deferral was pending it

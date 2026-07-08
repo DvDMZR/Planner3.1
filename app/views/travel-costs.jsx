@@ -1,9 +1,10 @@
 // ─── REISEKOSTENÜBERSICHT (Verwaltung) ───────────────────────────────────────
 // Steuerungs- und Tracking-Dashboard für Prozess 2: Gutschrift der Reisekosten
-// auf die Team-KST durch die interne Buchhaltung. Zeigt je Team das
-// Gesamtminus, die angeforderten Gutschriften und das bereinigte KST-Budget;
-// erlaubt Status-/Gegenkonto-Pflege je Kostenpunkt, den Mitarbeiter-basierten
-// Spesen-Import und den E-Mail-Versand an die Buchhaltung.
+// auf die Team-KST durch die interne Buchhaltung. Zeigt je Team (einklappbar)
+// das Gesamtminus, die angeforderten Gutschriften und das bereinigte
+// KST-Budget; erlaubt Status-/Gegenkonto-Pflege und Detail-/Bearbeiten-Zugriff
+// je Kostenpunkt, den Mitarbeiter-basierten Spesen-Import und den
+// E-Mail-Versand an die Buchhaltung mit Posten-Auswahl.
 // Reine Rechenlogik liegt in app/settlement.js (getSettlementStatus,
 // aggregateSettlement, buildAccountingEmail).
 const TravelCostsView = ({ s, h }) => {
@@ -15,6 +16,7 @@ const TravelCostsView = ({ s, h }) => {
     } = s;
     const {
         setCostItems, setEmpAliases, setFxRates, setActiveTab,
+        setSelectedProjectDetails,
         handleSaveAssignment, showToast, requestConfirm, logAudit,
     } = h;
 
@@ -25,6 +27,14 @@ const TravelCostsView = ({ s, h }) => {
     // bewusst über den Jahresfilter geholt werden.
     const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
     const [isImportOpen, setIsImportOpen] = useState(false);
+    // Einklappbare Team-Karten und ausklappbare Posten-Details
+    const [collapsedTeams, setCollapsedTeams] = useState({});   // { team: bool }
+    const [expandedItems, setExpandedItems] = useState({});     // { ciId: bool }
+    const [editItem, setEditItem] = useState(null);             // Kostenpunkt im Bearbeiten-Modal
+    // Sende-Dialog: Team-Vorauswahl + Checkbox je Reise
+    const [isSendOpen, setIsSendOpen] = useState(false);
+    const [sendTeam, setSendTeam] = useState('all');
+    const [sendSel, setSendSel] = useState({});                 // { ciId: bool }
 
     const fmt2 = (n) => (n || 0).toFixed(2);
     const itemYear = (ci) => (ci.dateFrom || ci.week || '').slice(0, 4);
@@ -75,6 +85,13 @@ const TravelCostsView = ({ s, h }) => {
             return kwF === kwT ? kwF : `${kwF}–${kwT}`;
         }
         return ci.week ? formatKW(ci.week) : '–';
+    };
+
+    // Klick auf ein Projekt → Projektdetails (gleiche Navigation wie die
+    // Command-Palette: Verwaltung → Projekte → Detailseite).
+    const openProject = (projectId) => {
+        setSelectedProjectDetails(projectId);
+        setActiveTab('setup_proj');
     };
 
     // ── Mutationen ───────────────────────────────────────────────────────────
@@ -130,8 +147,37 @@ const TravelCostsView = ({ s, h }) => {
         });
     };
 
-    // ── E-Mail an die Buchhaltung + Bestätigungs-Dialog ──────────────────────
-    const buildMail = () => buildAccountingEmail(toSubmitItems, employees, projects, teamKst);
+    // ── E-Mail an die Buchhaltung: Auswahl-Dialog + Bestätigung ─────────────
+    const openSendDialog = () => {
+        if (toSubmitItems.length === 0) { showToast(t('travel.nothingToSubmit'), { type: 'warning' }); return; }
+        // Vorauswahl: alle offenen Posten angehakt
+        const sel = {};
+        toSubmitItems.forEach(ci => { sel[ci.id] = true; });
+        setSendSel(sel);
+        setSendTeam('all');
+        setIsSendOpen(true);
+    };
+
+    // Teams, die im Sende-Dialog zur Auswahl stehen (nur mit offenen Posten)
+    const sendTeams = useMemo(
+        () => [...new Set(toSubmitItems.map(ci => empTeam(ci.empId)))].sort(),
+        [toSubmitItems, employeeById]);
+    const sendVisible = useMemo(
+        () => toSubmitItems.filter(ci => sendTeam === 'all' || empTeam(ci.empId) === sendTeam),
+        [toSubmitItems, sendTeam, employeeById]);
+    const sendSelected = useMemo(
+        () => toSubmitItems.filter(ci => sendSel[ci.id]),
+        [toSubmitItems, sendSel]);
+    const sendSelectedTotal = useMemo(
+        () => Math.round(sendSelected.reduce((sum, ci) => sum + settlementAmount(ci), 0) * 100) / 100,
+        [sendSelected]);
+    const allVisibleChecked = sendVisible.length > 0 && sendVisible.every(ci => sendSel[ci.id]);
+    const toggleAllVisible = (checked) =>
+        setSendSel(prev => {
+            const next = { ...prev };
+            sendVisible.forEach(ci => { next[ci.id] = checked; });
+            return next;
+        });
 
     const markSubmitted = (items, total) => {
         const ids = new Set(items.map(i => i.id));
@@ -143,9 +189,9 @@ const TravelCostsView = ({ s, h }) => {
         showToast(t('travel.markedSubmitted'), { type: 'success', duration: 4000 });
     };
 
-    const copyToClipboard = () => {
-        if (toSubmitItems.length === 0) { showToast(t('travel.nothingToSubmit'), { type: 'warning' }); return; }
-        const mail = buildMail();
+    const copySelection = () => {
+        if (sendSelected.length === 0) { showToast(t('travel.nothingToSubmit'), { type: 'warning' }); return; }
+        const mail = buildAccountingEmail(sendSelected, employees, projects, teamKst);
         const text = `${mail.subject}\n\n${mail.body}`;
         const done = () => showToast(t('travel.copied'), { type: 'success', duration: 3000 });
         if (navigator.clipboard?.writeText) {
@@ -157,14 +203,14 @@ const TravelCostsView = ({ s, h }) => {
         }
     };
 
-    const sendToAccounting = () => {
-        if (toSubmitItems.length === 0) { showToast(t('travel.nothingToSubmit'), { type: 'warning' }); return; }
+    const sendSelection = () => {
+        if (sendSelected.length === 0) { showToast(t('travel.nothingToSubmit'), { type: 'warning' }); return; }
         if (!(accountingRecipient || '').trim()) {
             showToast(t('travel.noRecipient'), { type: 'error', duration: 7000 });
             return;
         }
-        const items = toSubmitItems;
-        const mail = buildMail();
+        const items = sendSelected;
+        const mail = buildAccountingEmail(items, employees, projects, teamKst);
         const url = `mailto:${encodeURIComponent(accountingRecipient)}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}`;
         // mailto-Links werden von Clients ab ~2000 Zeichen abgeschnitten –
         // dann den Text stattdessen über die Zwischenablage transportieren.
@@ -172,6 +218,7 @@ const TravelCostsView = ({ s, h }) => {
             showToast(t('travel.mailTooLong'), { type: 'warning', duration: 8000 });
         }
         window.location.href = url;
+        setIsSendOpen(false);
         // Automatischer Folge-Dialog: Posten als übermittelt markieren?
         requestConfirm({
             title: t('travel.confirmSubmitTitle'),
@@ -207,12 +254,7 @@ const TravelCostsView = ({ s, h }) => {
                             className="px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-md hover:bg-gea-50 hover:border-gea-400 text-slate-700 flex items-center gap-2">
                             <IconUpload size={15}/> {t('travel.importBtn')}
                         </button>
-                        <button onClick={copyToClipboard}
-                            title={t('travel.copyHint')}
-                            className="px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-md hover:bg-gea-50 hover:border-gea-400 text-slate-700 flex items-center gap-2">
-                            <IconCopy size={15}/> {t('travel.copyBtn')}
-                        </button>
-                        <button onClick={sendToAccounting} disabled={toSubmitItems.length === 0}
+                        <button onClick={openSendDialog} disabled={toSubmitItems.length === 0}
                             className="px-4 py-2 text-sm font-medium text-white bg-gea-600 rounded-md hover:bg-gea-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
                             <IconExternalLink size={15}/> {t('travel.sendBtn').replace('{count}', String(toSubmitItems.length))}
                         </button>
@@ -244,7 +286,7 @@ const TravelCostsView = ({ s, h }) => {
                     </div>
                 </div>
 
-                {/* Team-Karten */}
+                {/* Team-Karten (einklappbar) */}
                 {groups.length === 0 ? (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
                         <EmptyState
@@ -254,10 +296,17 @@ const TravelCostsView = ({ s, h }) => {
                             action={{ label: t('travel.importBtn'), onClick: () => setIsImportOpen(true) }}
                         />
                     </div>
-                ) : groups.map(g => (
+                ) : groups.map(g => {
+                    const collapsed = !!collapsedTeams[g.team];
+                    return (
                     <div key={g.team} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3">
-                            <h3 className="text-slate-900 text-base font-medium">{t('travel.teamPrefix')} {g.team}</h3>
+                            <button onClick={() => setCollapsedTeams(prev => ({ ...prev, [g.team]: !collapsed }))}
+                                className="flex items-center gap-2 text-left group"
+                                title={collapsed ? t('travel.expand') : t('travel.collapse')}>
+                                <span className={`transition-transform text-slate-400 text-xs ${collapsed ? '' : 'rotate-90'}`}>▶</span>
+                                <h3 className="text-slate-900 text-base font-medium group-hover:text-gea-700">{t('travel.teamPrefix')} {g.team}</h3>
+                            </button>
                             {g.kst ? (
                                 <span className="text-xs px-2 py-0.5 rounded-full border font-mono font-medium bg-gea-50 border-gea-200 text-gea-800">
                                     {t('cats.kst')} {g.kst}
@@ -269,6 +318,10 @@ const TravelCostsView = ({ s, h }) => {
                                     ⚠ {t('travel.kstMissing')}
                                 </button>
                             )}
+                            {/* Kompakt-Summen im Kopf, damit die Karte auch eingeklappt aussagekräftig ist */}
+                            <span className="text-xs text-slate-500 tabular-nums">
+                                -{fmt2(g.raw)} € · {t('travel.colAdjusted')}: <span className="font-semibold text-slate-800">-{fmt2(g.adjusted)} €</span>
+                            </span>
                             <div className="ml-auto">
                                 {g.toSubmit > 0 && (
                                     <button onClick={() => bulkRemainOnKst(g)}
@@ -279,6 +332,7 @@ const TravelCostsView = ({ s, h }) => {
                             </div>
                         </div>
 
+                        {!collapsed && (<>
                         <div className="p-4 flex flex-wrap gap-3">
                             {statTile(t('travel.colRaw'), `-${fmt2(g.raw)} €`, 'text-rose-700')}
                             {statTile(t('travel.colToSubmit'), `${fmt2(g.toSubmit)} €`, 'text-amber-700')}
@@ -290,6 +344,7 @@ const TravelCostsView = ({ s, h }) => {
                         <table className="w-full text-left text-sm border-t border-slate-100">
                             <thead className="bg-slate-50 border-b border-slate-200">
                                 <tr>
+                                    <th className="p-3 w-8"></th>
                                     <th className="p-3 text-slate-500 font-medium">{t('travel.colEmployee')}</th>
                                     <th className="p-3 text-slate-500 font-medium">{t('travel.colProject')}</th>
                                     <th className="p-3 text-slate-500 font-medium text-center">{t('util.kw')}</th>
@@ -305,14 +360,27 @@ const TravelCostsView = ({ s, h }) => {
                                     const proj = ci.projectId ? projectById.get(ci.projectId) : null;
                                     const status = getSettlementStatus(ci);
                                     const cfg = SETTLEMENT_STATUSES[status];
+                                    const open = !!expandedItems[ci.id];
                                     return (
-                                        <tr key={ci.id} className="hover:bg-slate-50 transition-colors">
+                                        <React.Fragment key={ci.id}>
+                                        <tr className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-3">
+                                                <button onClick={() => setExpandedItems(prev => ({ ...prev, [ci.id]: !open }))}
+                                                    title={t('travel.detailsHint')}
+                                                    className={`transition-transform text-slate-400 text-xs ${open ? 'rotate-90' : ''}`}>▶</button>
+                                            </td>
                                             <td className="p-3 text-slate-800 font-medium">
                                                 {emp?.name || '–'}
                                                 {ci.description && <span className="block text-xs text-slate-400 font-normal truncate max-w-[14rem]">{ci.description}</span>}
                                             </td>
                                             <td className="p-3 text-slate-600">
-                                                {proj ? proj.name : (
+                                                {proj ? (
+                                                    <button onClick={() => openProject(proj.id)}
+                                                        title={t('travel.openProjectHint')}
+                                                        className="text-gea-600 hover:text-gea-700 hover:underline font-medium text-left">
+                                                        {proj.name}
+                                                    </button>
+                                                ) : (
                                                     <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-slate-100 border-slate-200 text-slate-600">
                                                         {t('travel.internal')}
                                                     </span>
@@ -345,12 +413,113 @@ const TravelCostsView = ({ s, h }) => {
                                                 )}
                                             </td>
                                         </tr>
+                                        {open && (
+                                            <tr className="bg-slate-50/60">
+                                                <td className="p-0"></td>
+                                                <td colSpan={7} className="px-3 pb-3 pt-1">
+                                                    <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-1.5">
+                                                        {(ci.lines || []).map(l => {
+                                                            const lcfg = COST_LINE_TYPES[l.type] || COST_LINE_TYPES.other;
+                                                            return (
+                                                                <div key={l.id} className="flex items-center gap-2 text-xs">
+                                                                    <span className={`px-2 py-0.5 rounded-full border font-medium shrink-0 ${lcfg.chip}`}>{lcfg.label}</span>
+                                                                    {l.type === 'hours' && l.hours != null && (
+                                                                        <span className="text-slate-500 tabular-nums">{l.hours}h × {l.hourlyRate}€</span>
+                                                                    )}
+                                                                    {l.comment && <span className="text-slate-500 truncate">{l.comment}</span>}
+                                                                    <span className="text-slate-700 tabular-nums ml-auto">{(l.amount || 0).toFixed(2)} €</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        <div className="flex items-center gap-3 pt-1.5 border-t border-slate-100 text-xs text-slate-400">
+                                                            {ci.expenseReportId && <span>{t('expense.reportId')}: <span className="font-mono">{ci.expenseReportId}</span></span>}
+                                                            {ci.dateFrom && <span>{ci.dateFrom}{ci.dateTo ? ` – ${ci.dateTo}` : ''}</span>}
+                                                            <button onClick={() => setEditItem(ci)}
+                                                                className="ml-auto text-gea-600 hover:text-gea-700 font-medium">{t('btn.edit')}</button>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </React.Fragment>
                                     );
                                 })}
                             </tbody>
                         </table>
+                        </>)}
                     </div>
-                ))}
+                    );
+                })}
+
+                {/* Sende-Dialog: Auswahl der zu übermittelnden Reisen */}
+                {isSendOpen && (
+                    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                            <ModalHeader title={t('travel.sendModalTitle')} subtitle={t('travel.sendModalHint')} onClose={() => setIsSendOpen(false)}/>
+                            <div className="p-5 space-y-3 overflow-y-auto flex-1">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <select value={sendTeam} onChange={e => setSendTeam(e.target.value)} className={selectCls}>
+                                        <option value="all">{t('travel.filterAllTeams')}</option>
+                                        {sendTeams.map(tm => <option key={tm} value={tm}>{tm}</option>)}
+                                    </select>
+                                    <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+                                        <input type="checkbox" checked={allVisibleChecked}
+                                            onChange={e => toggleAllVisible(e.target.checked)}
+                                            className="w-4 h-4 text-gea-600 rounded"/>
+                                        {t('travel.selectAllVisible')}
+                                    </label>
+                                </div>
+                                <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 overflow-hidden">
+                                    {sendVisible.length === 0 ? (
+                                        <div className="p-4 text-sm text-slate-400">{t('travel.nothingToSubmit')}</div>
+                                    ) : sendVisible.map(ci => {
+                                        const emp = employeeById.get(ci.empId);
+                                        const proj = ci.projectId ? projectById.get(ci.projectId) : null;
+                                        const team = empTeam(ci.empId);
+                                        return (
+                                            <label key={ci.id} className="flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer hover:bg-slate-50 select-none">
+                                                <input type="checkbox" checked={!!sendSel[ci.id]}
+                                                    onChange={e => setSendSel(prev => ({ ...prev, [ci.id]: e.target.checked }))}
+                                                    className="w-4 h-4 text-gea-600 rounded shrink-0"/>
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="text-slate-800 font-medium">{emp?.name || '–'}</span>
+                                                    <span className="text-slate-400 text-xs ml-2">
+                                                        {[team + (teamKst?.[team] ? ` (${t('cats.kst')} ${teamKst[team]})` : ''),
+                                                          proj ? proj.name : t('travel.internal'),
+                                                          kwLabel(ci)].filter(Boolean).join(' · ')}
+                                                    </span>
+                                                </div>
+                                                {ci.reportKey && <span className="text-xs text-slate-400 font-mono shrink-0">{ci.reportKey}</span>}
+                                                <span className="text-slate-900 font-medium tabular-nums shrink-0">{fmt2(settlementAmount(ci))} €</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3">
+                                <div>
+                                    <p className="text-xs text-slate-500">{t('travel.selectedSum').replace('{count}', String(sendSelected.length))}</p>
+                                    <p className="text-lg text-gea-600 font-semibold tabular-nums">{fmt2(sendSelectedTotal)} €</p>
+                                </div>
+                                <div className="ml-auto flex gap-2">
+                                    <button onClick={() => setIsSendOpen(false)}
+                                        className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 font-medium">
+                                        {t('btn.cancel')}
+                                    </button>
+                                    <button onClick={copySelection} disabled={sendSelected.length === 0}
+                                        title={t('travel.copyHint')}
+                                        className="px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-md hover:bg-gea-50 hover:border-gea-400 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                                        <IconCopy size={14}/> {t('travel.copyBtn')}
+                                    </button>
+                                    <button onClick={sendSelection} disabled={sendSelected.length === 0}
+                                        className="px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                                        <IconExternalLink size={14}/> {t('travel.openMailBtn')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {isImportOpen && (
                     <ExpenseImportModal
@@ -369,6 +538,20 @@ const TravelCostsView = ({ s, h }) => {
                         expenseCategories={expenseCategories}
                         showToast={showToast}
                         onClose={() => setIsImportOpen(false)}
+                        t={t}
+                    />
+                )}
+
+                {editItem && (
+                    <CostItemModal
+                        projectId={editItem.projectId ?? null}
+                        existingItem={editItem}
+                        assignments={assignments}
+                        employees={employees}
+                        costItems={costItems}
+                        setCostItems={setCostItems}
+                        showToast={showToast}
+                        onClose={() => setEditItem(null)}
                         t={t}
                     />
                 )}
