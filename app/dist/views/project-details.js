@@ -71,6 +71,7 @@ const ProjectDetailsView = ({
     empAliases,
     fxRates,
     expenseCategories,
+    teamKst,
     language,
     t
   } = s;
@@ -535,6 +536,8 @@ const ProjectDetailsView = ({
     className: "text-sm text-slate-400"
   }, "\u20AC/h"))))), isExpenseImportOpen && /*#__PURE__*/React.createElement(ExpenseImportModal, {
     proj: proj,
+    projects: projects,
+    teamKst: teamKst,
     employees: employees,
     assignments: assignments,
     costItems: costItems,

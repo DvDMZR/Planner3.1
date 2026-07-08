@@ -402,6 +402,7 @@ const ALLOWED_IMPORT_KEYS = new Set([
     'offtimeTasks', 'inactiveOfftimeTasks',
     'inactiveSupportTasks', 'inactiveTrainingTasks', 'customTrainingTasks',
     'invoiceRecipient', 'auditLog', 'empAliases', 'fxRates', 'expenseCategories',
+    'teamKst', 'accountingRecipient',
     'schemaVersion', 'exportedAt', 'backupReason', 'backupAt',
 ]);
 const validateImportedState = (parsed) => {
@@ -436,14 +437,17 @@ const validateImportedState = (parsed) => {
     cap('assignments', 50000);
     cap('costItems', 20000);
     cap('auditLog', 500);
-    // basicTasksMeta, empAliases and fxRates are plain object maps.
-    for (const f of ['basicTasksMeta', 'empAliases', 'fxRates']) {
+    // basicTasksMeta, empAliases, fxRates and teamKst are plain object maps.
+    for (const f of ['basicTasksMeta', 'empAliases', 'fxRates', 'teamKst']) {
         if (out[f] !== undefined && (typeof out[f] !== 'object' || out[f] === null || Array.isArray(out[f]))) {
             delete out[f];
         }
     }
     if (out.invoiceRecipient !== undefined && typeof out.invoiceRecipient !== 'string') {
         delete out.invoiceRecipient;
+    }
+    if (out.accountingRecipient !== undefined && typeof out.accountingRecipient !== 'string') {
+        delete out.accountingRecipient;
     }
     // Per-row guards: assignments must have empId + week + type.
     if (Array.isArray(out.assignments)) {
@@ -454,7 +458,12 @@ const validateImportedState = (parsed) => {
             && typeof a.type === 'string');
     }
     if (Array.isArray(out.costItems)) {
-        out.costItems = out.costItems.filter(c => c && typeof c === 'object' && typeof c.projectId === 'string');
+        // projectId darf fehlen/null sein (interne KST-Kosten ohne Projekt);
+        // Anker ist die empId – über sie werden Kostenpunkte den Team-Dateien
+        // zugeordnet (groupByTeam).
+        out.costItems = out.costItems.filter(c => c && typeof c === 'object'
+            && typeof c.empId === 'string'
+            && (typeof c.projectId === 'string' || c.projectId === null || c.projectId === undefined));
     }
     if (Array.isArray(out.employees)) {
         out.employees = out.employees.filter(e => e && typeof e === 'object' && typeof e.id === 'string' && typeof e.name === 'string');

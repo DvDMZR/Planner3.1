@@ -150,6 +150,7 @@ const SetupProjView = ({
       name: p.name,
       category: p.category || projCategories[0] || '',
       projectNumber: p.projectNumber || '',
+      kst: p.kst || '',
       address: p.address || '',
       country: p.country || '',
       startWeek: p.startWeek,

@@ -23,6 +23,7 @@ const SetupCatsView = ({
     newBasicTask,
     newOfftimeTask,
     expenseCategories,
+    teamKst,
     t
   } = s;
   const {
@@ -42,7 +43,8 @@ const SetupCatsView = ({
     setNewProjCat,
     setNewBasicTask,
     setNewOfftimeTask,
-    setExpenseCategories
+    setExpenseCategories,
+    setTeamKst
   } = h;
   const [newTrainingTask, setNewTrainingTask] = useState('');
   const [newOtherTask, setNewOtherTask] = useState('');
@@ -523,11 +525,39 @@ const SetupCatsView = ({
     className: "divide-y divide-slate-100"
   }, empCategories.map(cat => /*#__PURE__*/React.createElement("li", {
     key: cat,
-    className: "px-4 py-3 flex justify-between items-center text-sm"
+    className: "px-4 py-3 flex justify-between items-center gap-3 text-sm"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "text-slate-800"
-  }, cat), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setEmpCategories(empCategories.filter(c => c !== cat)),
+    className: "text-slate-800 flex-1"
+  }, cat), /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-1.5 text-xs text-slate-400"
+  }, t('cats.kst'), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: (teamKst || {})[cat] || '',
+    onChange: e => {
+      const v = e.target.value;
+      setTeamKst(prev => {
+        const next = {
+          ...(prev || {})
+        };
+        if (v.trim()) next[cat] = v.trim();else delete next[cat];
+        return next;
+      });
+    },
+    placeholder: t('cats.kstPlaceholder'),
+    className: "w-24 p-1.5 border border-slate-300 rounded text-sm text-slate-800"
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setEmpCategories(empCategories.filter(c => c !== cat));
+      // KST-Zuordnung des gelöschten Teams mit aufräumen
+      setTeamKst(prev => {
+        if (!prev || !(cat in prev)) return prev;
+        const {
+          [cat]: _gone,
+          ...rest
+        } = prev;
+        return rest;
+      });
+    },
     className: "text-rose-500 hover:text-rose-700"
   }, /*#__PURE__*/React.createElement(IconX, {
     size: 16

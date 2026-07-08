@@ -131,6 +131,38 @@ test('validateImportedState: neuere Schema-Version wird abgelehnt', () => {
     assert.equal(r.reason, 'futureVersion');
 });
 
+test('validateImportedState: costItems ohne projectId (interne KST-Kosten) überleben', () => {
+    const r = app.validateImportedState({
+        costItems: [
+            { id: 'c1', projectId: 'p1', empId: 'e1', lines: [], amount: 0 },
+            { id: 'c2', projectId: null, empId: 'e1', lines: [], amount: 0 },  // intern
+            { id: 'c3', empId: 'e1', lines: [], amount: 0 },                   // projectId fehlt ganz
+            { id: 'c4', projectId: 'p1', lines: [], amount: 0 },               // KEINE empId → raus
+            { id: 'c5', projectId: 42, empId: 'e1' },                          // kaputter Typ → raus
+        ],
+    });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.data.costItems.map(c => c.id), ['c1', 'c2', 'c3']);
+});
+
+test('validateImportedState: teamKst/accountingRecipient werden validiert übernommen', () => {
+    const ok = app.validateImportedState({
+        teamKst: { AS: '4711' },
+        accountingRecipient: 'buchhaltung@example.com',
+    });
+    assert.equal(ok.ok, true);
+    assert.deepEqual(ok.data.teamKst, { AS: '4711' });
+    assert.equal(ok.data.accountingRecipient, 'buchhaltung@example.com');
+
+    const bad = app.validateImportedState({
+        teamKst: ['array statt map'],
+        accountingRecipient: 42,
+    });
+    assert.equal(bad.ok, true);
+    assert.equal(bad.data.teamKst, undefined);
+    assert.equal(bad.data.accountingRecipient, undefined);
+});
+
 // ── Audit-Merge ──────────────────────────────────────────────────────────────
 
 test('mergeAuditLogs: Union per id, neueste zuerst, Cap 500', () => {

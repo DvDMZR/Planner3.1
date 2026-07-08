@@ -44,7 +44,7 @@ const _SidebarBase = ({ s, h }) => {
     const isAdmin = currentUser?.role === 'admin';
 
     // Verwaltung group: collapsible, persisted, auto-expand when navigating to a Verwaltung tab
-    const VERWALTUNG_TABS = ['setup_emp', 'setup_proj', 'setup_cats', 'data', 'audit'];
+    const VERWALTUNG_TABS = ['setup_emp', 'setup_proj', 'setup_cats', 'travel', 'data', 'audit'];
     const [verwaltungOpen, setVerwaltungOpen] = React.useState(() => {
         try {
             const stored = localStorage.getItem('sidebar.verwaltungOpen');
@@ -144,6 +144,7 @@ const _SidebarBase = ({ s, h }) => {
                         {tabBtn('setup_emp',  t('nav.employees'),   <IconUser size={18}/>)}
                         {tabBtn('setup_proj', t('nav.projects'),    <IconBriefcase size={18}/>)}
                         {tabBtn('setup_cats', t('nav.categories'),  <IconTag size={18}/>)}
+                        {tabBtn('travel',     t('nav.travelCosts'), <IconFileText size={18}/>)}
                         {tabBtn('data',       t('nav.systemExport'),<IconSettings size={18}/>)}
                         {tabBtn('audit',      t('nav.history'),     <IconHistory size={18}/>)}
                     </>
@@ -152,6 +153,7 @@ const _SidebarBase = ({ s, h }) => {
                         {lockedTabBtn(t('nav.employees'),   <IconUser size={18}/>)}
                         {lockedTabBtn(t('nav.projects'),    <IconBriefcase size={18}/>)}
                         {lockedTabBtn(t('nav.categories'),  <IconTag size={18}/>)}
+                        {lockedTabBtn(t('nav.travelCosts'), <IconFileText size={18}/>)}
                         {lockedTabBtn(t('nav.systemExport'),<IconSettings size={18}/>)}
                         {lockedTabBtn(t('nav.history'),     <IconHistory size={18}/>)}
                     </>

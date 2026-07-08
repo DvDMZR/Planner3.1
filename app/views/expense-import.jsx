@@ -1,9 +1,16 @@
 // ─── SPESEN-IMPORT (Expense Tracking) ────────────────────────────────────────
 // Modal-Workflow: ERP-Text einfügen → parsen → Mitarbeiter zuordnen (Alias-
 // System) → Planungs-Check je Kalenderwoche → Beträge in EUR prüfen/editieren
-// → als Kostenpunkt (lines) im Projekt speichern.
+// → als Kostenpunkt (lines) speichern.
+// Zwei Einstiege:
+//   - Projekt-Import (project-details): `proj` ist gesetzt, Ziel fixiert.
+//   - Mitarbeiter-Import (Reisekostenübersicht): `proj` ist null; das Ziel-
+//     Projekt wird aus der Einsatzplanung vorgeschlagen oder der Import wird
+//     als interne KST-Kosten (projectId null) gebucht.
 const ExpenseImportModal = ({
     proj,
+    projects = [],
+    teamKst = {},
     employees,
     assignments,
     costItems,
@@ -20,7 +27,7 @@ const ExpenseImportModal = ({
 }) => {
     const { useState, useMemo } = React;
     useEscapeToClose(onClose);
-    const projectId = proj.id;
+    const fixedProject = proj || null;
 
     const [step, setStep] = useState('paste');        // 'paste' | 'review'
     const [rawText, setRawText] = useState('');
@@ -32,6 +39,20 @@ const ExpenseImportModal = ({
     const [fxRate, setFxRate] = useState('');
     const [addWeeksSel, setAddWeeksSel] = useState({}); // { weekId: bool }
     const [openCats, setOpenCats] = useState({});       // Accordion-Zustand
+    // Ziel der Buchung (nur im Mitarbeiter-Import wählbar):
+    //   'auto'     – bestgeplantes Projekt aus der Einsatzplanung, sonst intern
+    //   'internal' – interne KST-Kosten (projectId null)
+    //   'other'    – freie Projektwahl über `otherProjectId`
+    //   <projId>   – explizit gewähltes vorgeschlagenes Projekt
+    const [targetChoice, setTargetChoice] = useState('auto');
+    const [otherProjectId, setOtherProjectId] = useState('');
+    // Gegenkonto/Ziel-Stelle für die Umbuchung durch die Buchhaltung; wird mit
+    // der Projekt-KST vorbelegt, bis der Nutzer das Feld anfasst.
+    const [targetAccount, setTargetAccount] = useState(fixedProject?.kst || '');
+    const [targetAccountTouched, setTargetAccountTouched] = useState(false);
+    // Gutschrift-Status: null = automatischer Default (Projekt → to_submit,
+    // intern → remain_on_kst), sonst explizite Wahl des Nutzers.
+    const [settleStatusSel, setSettleStatusSel] = useState(null);
 
     const safeNum = (v) => {
         const n = parseFloat(String(v).replace(',', '.'));
@@ -96,16 +117,59 @@ const ExpenseImportModal = ({
     const currency = parsed?.header.currency || 'EUR';
     const isForeignCurrency = currency !== 'EUR';
 
+    // Mitarbeiter-Import: Auf welchen Projekten war der Mitarbeiter in den
+    // KWs der Posten laut Einsatzplanung im Einsatz? → Vorschlagsliste für
+    // das Buchungsziel, sortiert nach Zahl der überlappenden Wochen.
+    const plannedProjects = useMemo(() => {
+        if (fixedProject || !effectiveEmpId || rows.length === 0) return [];
+        const itemWeeks = new Set(rows.map(r => r.week));
+        const byProject = new Map();
+        (assignments || []).forEach(a => {
+            if (a.empId !== effectiveEmpId || a.type !== 'project' || !itemWeeks.has(a.week)) return;
+            if (!byProject.has(a.reference)) byProject.set(a.reference, new Set());
+            byProject.get(a.reference).add(a.week);
+        });
+        return [...byProject.entries()]
+            .map(([pid, weeks]) => ({
+                project: (projects || []).find(p => p.id === pid),
+                weeks: [...weeks].sort(compareWeekIds),
+            }))
+            .filter(e => e.project)
+            .sort((a, b) => b.weeks.length - a.weeks.length);
+    }, [fixedProject, effectiveEmpId, rows, assignments, projects]);
+
+    // Effektives Buchungsziel aus der Wahl ableiten. 'auto' folgt der
+    // Einsatzplanung (bestgeplantes Projekt), sonst gilt die explizite Wahl.
+    const autoTargetId = plannedProjects[0]?.project.id || null;
+    const targetProjectId = fixedProject ? fixedProject.id
+        : targetChoice === 'auto'     ? autoTargetId
+        : targetChoice === 'internal' ? null
+        : targetChoice === 'other'    ? (otherProjectId || null)
+        : targetChoice;
+
+    const targetProject = fixedProject
+        || (targetProjectId ? (projects || []).find(p => p.id === targetProjectId) || null : null);
+
+    // Gegenkonto mit der KST des Ziel-Projekts vorbelegen (Nutzer-Eingabe gewinnt).
+    React.useEffect(() => {
+        if (targetAccountTouched) return;
+        setTargetAccount(targetProject?.kst || '');
+    }, [targetProject, targetAccountTouched]);
+
+    // Gutschrift-Status: expliziter Nutzer-Wunsch oder Default nach Kostenart.
+    const effectiveSettleStatus = settleStatusSel
+        || (targetProjectId ? 'to_submit' : 'remain_on_kst');
+
     // Planungs-Check: In welchen KWs der Posten war der Mitarbeiter NICHT für
-    // dieses Projekt verplant?
+    // das Ziel-Projekt verplant? (entfällt bei interner Buchung)
     const missingWeeks = useMemo(() => {
-        if (!effectiveEmpId || rows.length === 0) return [];
+        if (!effectiveEmpId || rows.length === 0 || !targetProjectId) return [];
         const itemWeeks = [...new Set(rows.map(r => r.week))].sort(compareWeekIds);
         const planned = new Set((assignments || [])
-            .filter(a => a.empId === effectiveEmpId && a.type === 'project' && a.reference === projectId)
+            .filter(a => a.empId === effectiveEmpId && a.type === 'project' && a.reference === targetProjectId)
             .map(a => a.week));
         return itemWeeks.filter(w => !planned.has(w));
-    }, [effectiveEmpId, rows, assignments, projectId]);
+    }, [effectiveEmpId, rows, assignments, targetProjectId]);
 
     // Neu erkannte fehlende Wochen standardmäßig zum Hinzufügen vormerken
     // (der Nutzer kann sie einzeln abwählen).
@@ -117,12 +181,15 @@ const ExpenseImportModal = ({
         });
     }, [missingWeeks]);
 
-    // Duplikat-Erkennung über die Abrechnungs-ID
-    const duplicate = useMemo(() => {
-        if (!parsed?.header.reportId) return null;
-        return (costItems || []).find(c =>
-            c.projectId === projectId && c.expenseReportId === parsed.header.reportId) || null;
-    }, [parsed, costItems, projectId]);
+    // Duplikat-Erkennung über die Abrechnungs-ID: beim Projekt-Import
+    // projektbezogen (Ersetzen), beim Mitarbeiter-Import global – die ERP-ID
+    // ist firmenweit eindeutig. Treffer auf anderen Projekten lösen nur eine
+    // Warnung aus (`elsewhere`).
+    const dupInfo = useMemo(() => {
+        if (!parsed?.header.reportId) return { duplicate: null, elsewhere: null };
+        return findDuplicateExpenseReport(costItems, parsed.header.reportId, targetProjectId);
+    }, [parsed, costItems, targetProjectId]);
+    const duplicate = dupInfo.duplicate;
 
     // Ebene 1: Summen je Kategorie (nur eingeschlossene Posten, EUR)
     const sums = useMemo(() => {
@@ -175,7 +242,7 @@ const ExpenseImportModal = ({
         }
         // Fehlende Wochen zur Planung hinzufügen (0 h = "Unter Vorbehalt")
         missingWeeks.filter(w => addWeeksSel[w]).forEach(week => {
-            handleSaveAssignment({ empId: effectiveEmpId, week, type: 'project', reference: projectId, hours: 0 });
+            handleSaveAssignment({ empId: effectiveEmpId, week, type: 'project', reference: targetProjectId, hours: 0 });
         });
 
         const dates = included.map(r => r.date).sort();
@@ -192,8 +259,11 @@ const ExpenseImportModal = ({
             };
         });
         const item = {
+            // Beim Ersetzen eines Duplikats bleiben dessen übrige Felder
+            // erhalten; alles Import-Relevante wird explizit neu gesetzt.
+            ...(duplicate || {}),
             id: duplicate?.id || makeId('ci'),
-            projectId,
+            projectId: targetProjectId,
             empId: effectiveEmpId,
             description: `${t('expense.descPrefix')} ${parsed.header.reportName || ''}`.trim(),
             dateFrom: dates[0] || null,
@@ -202,6 +272,10 @@ const ExpenseImportModal = ({
             lines,
             amount: lines.reduce((s, l) => s + l.amount, 0),
             expenseReportId: parsed.header.reportId || null,
+            // Gutschrift-Tracking (Prozess 2)
+            reportKey: parsed.header.reportKey || null,
+            targetAccount: targetAccount.trim() || null,
+            settlementStatus: effectiveSettleStatus,
         };
         if (duplicate) {
             setCostItems(costItems.map(c => c.id === duplicate.id ? item : c));
@@ -218,7 +292,9 @@ const ExpenseImportModal = ({
     return (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
-                <ModalHeader title={t('expense.title')} subtitle={`${t('overview.colProject')}: ${proj.name}`} onClose={onClose}/>
+                <ModalHeader title={t('expense.title')}
+                    subtitle={fixedProject ? `${t('overview.colProject')}: ${fixedProject.name}` : t('expense.employeeBased')}
+                    onClose={onClose}/>
 
                 {step === 'paste' && (
                     <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -248,6 +324,11 @@ const ExpenseImportModal = ({
                         {duplicate && (
                             <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
                                 ⚠ {t('expense.duplicateHint')}
+                            </div>
+                        )}
+                        {!duplicate && dupInfo.elsewhere && (
+                            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+                                ⚠ {t('expense.duplicateElsewhere')}
                             </div>
                         )}
                         {parsed.warnings.filter(w => w.type === 'unparsedRow').length > 0 && (
@@ -290,6 +371,74 @@ const ExpenseImportModal = ({
                                     </div>
                                 </div>
                             )}
+                        </div>
+
+                        {/* Buchungsziel (nur Mitarbeiter-Import): Vorschlag aus
+                            der Einsatzplanung, freie Projektwahl oder interne
+                            KST-Kosten ohne Projekt. */}
+                        {!fixedProject && effectiveEmpId && (
+                            <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 space-y-2">
+                                <div className="text-sm font-medium text-slate-800">{t('expense.targetTitle')}</div>
+                                {plannedProjects.length === 0 && (
+                                    <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+                                        ⚠ {t('expense.noPlanningFound')}
+                                    </div>
+                                )}
+                                <div className="space-y-1.5">
+                                    {plannedProjects.map(({ project, weeks }) => (
+                                        <label key={project.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                            <input type="radio" name="expTarget"
+                                                checked={targetChoice === project.id || (targetChoice === 'auto' && autoTargetId === project.id)}
+                                                onChange={() => setTargetChoice(project.id)}
+                                                className="w-4 h-4 text-gea-600"/>
+                                            <span className="text-slate-800 font-medium">{project.name}</span>
+                                            <span className="text-xs text-slate-500">
+                                                {t('expense.plannedInWeeks').replace('{weeks}', weeks.map(w => formatKW(w)).join(', '))}
+                                            </span>
+                                        </label>
+                                    ))}
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                        <input type="radio" name="expTarget"
+                                            checked={targetChoice === 'other'}
+                                            onChange={() => setTargetChoice('other')}
+                                            className="w-4 h-4 text-gea-600"/>
+                                        <span className="text-slate-700">{t('expense.otherProject')}</span>
+                                        <select
+                                            value={otherProjectId}
+                                            onChange={e => { setTargetChoice('other'); setOtherProjectId(e.target.value); }}
+                                            className="p-1.5 border border-slate-300 rounded-md text-sm bg-white flex-1 min-w-0">
+                                            <option value="">{t('expense.selectProject')}</option>
+                                            {(projects || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                        <input type="radio" name="expTarget"
+                                            checked={targetChoice === 'internal' || (targetChoice === 'auto' && !autoTargetId)}
+                                            onChange={() => setTargetChoice('internal')}
+                                            className="w-4 h-4 text-gea-600"/>
+                                        <span className="text-slate-700">{t('expense.bookInternal')}</span>
+                                        <span className="text-xs text-slate-400">{t('expense.bookInternalHint')}</span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Verrechnung: Gutschrift-Status + Gegenkonto (Prozess 2) */}
+                        <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 flex items-center gap-3 flex-wrap">
+                            <span className="text-sm text-slate-700 font-medium">{t('expense.settlement')}:</span>
+                            <select value={effectiveSettleStatus}
+                                onChange={e => setSettleStatusSel(e.target.value)}
+                                className="p-1.5 border border-slate-300 rounded-md text-sm bg-white">
+                                <option value="to_submit">{t('travel.status.to_submit')}</option>
+                                <option value="remain_on_kst">{t('travel.status.remain_on_kst')}</option>
+                            </select>
+                            <span className="text-sm text-slate-500 ml-2">{t('expense.targetAccount')}:</span>
+                            <input type="text" value={targetAccount}
+                                onChange={e => { setTargetAccountTouched(true); setTargetAccount(e.target.value); }}
+                                placeholder={t('expense.targetAccountPlaceholder')}
+                                title={t('expense.targetAccountHint')}
+                                className="w-32 p-1.5 border border-slate-300 rounded text-sm font-mono"/>
+                            <span className="text-xs text-slate-400">{t('expense.targetAccountHint')}</span>
                         </div>
 
                         {/* Planungs-Check */}
