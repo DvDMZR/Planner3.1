@@ -16,6 +16,7 @@ const DataView = ({
     lastBackupAt,
     emailTemplate,
     invoiceRecipient,
+    accountingRecipient,
     employees,
     empAliases,
     t
@@ -27,6 +28,7 @@ const DataView = ({
     runBackup,
     setEmailTemplate,
     setInvoiceRecipient,
+    setAccountingRecipient,
     exportData,
     importData,
     showToast,
@@ -487,7 +489,17 @@ const DataView = ({
     className: "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gea-400"
   }), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-400 mt-1"
-  }, t('data.invoiceHint')))), section(t('data.sectionExport'), /*#__PURE__*/React.createElement("div", {
+  }, t('data.invoiceHint')))), section(t('data.sectionAccounting'), /*#__PURE__*/React.createElement("div", {
+    className: "p-4"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "email",
+    value: accountingRecipient,
+    onChange: e => setAccountingRecipient(e.target.value),
+    placeholder: "buchhaltung@firma.de",
+    className: "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gea-400"
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-400 mt-1"
+  }, t('data.accountingHint')))), section(t('data.sectionExport'), /*#__PURE__*/React.createElement("div", {
     className: "p-4 space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-4"

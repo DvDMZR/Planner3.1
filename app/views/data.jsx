@@ -5,9 +5,9 @@
 const DataView = ({ s, h }) => {
     const { useState } = React;
     const { currentUser, appUsers, autoBackup, lastBackupAt, emailTemplate,
-            invoiceRecipient, employees, empAliases, t } = s;
+            invoiceRecipient, accountingRecipient, employees, empAliases, t } = s;
     const { setAppUsers, loginUser, setAutoBackup, runBackup, setEmailTemplate,
-            setInvoiceRecipient, exportData, importData, showToast, requestConfirm,
+            setInvoiceRecipient, setAccountingRecipient, exportData, importData, showToast, requestConfirm,
             setEmpAliases } = h;
 
     const isAdmin = currentUser?.role === 'admin';
@@ -406,6 +406,18 @@ const DataView = ({ s, h }) => {
                             placeholder="rechnung@kunde.de"
                             className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gea-400"/>
                         <p className="text-xs text-slate-400 mt-1">{t('data.invoiceHint')}</p>
+                    </div>
+                ))}
+
+                {/* Buchhaltung (Reisekosten-Gutschriften, Prozess 2 –
+                    getrennt vom Rechnungsempfänger/Auftragszentrum) */}
+                {section(t('data.sectionAccounting'), (
+                    <div className="p-4">
+                        <input type="email" value={accountingRecipient}
+                            onChange={e => setAccountingRecipient(e.target.value)}
+                            placeholder="buchhaltung@firma.de"
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gea-400"/>
+                        <p className="text-xs text-slate-400 mt-1">{t('data.accountingHint')}</p>
                     </div>
                 ))}
 

@@ -69,6 +69,8 @@ const sampleState = () => ({
     invoiceRecipient: 'buchhaltung@example.com',
     empAliases: { 'jakub mechlinski': 'e1' },
     fxRates: { PLN: 0.23 },
+    teamKst: { AS: '4711', CMS: '4712' },
+    accountingRecipient: 'gutschrift@example.com',
     appUsers: [{ id: 'admin', role: 'admin', pinHash: 'h', pinSalt: 's', pinAlgo: 'pbkdf2-100k' }],
     auditLog: [{ id: 'log1', timestamp: '2026-01-01' }],
     autoBackup: { intervalMin: 60 },
@@ -120,6 +122,18 @@ test('buildSplitFiles → mergeSplitFiles: verlustfreier Roundtrip', () => {
     // Spesen-Import-Felder überleben den Roundtrip (settings.json)
     assert.deepEqual(merged.empAliases, state.empAliases);
     assert.deepEqual(merged.fxRates, state.fxRates);
+    // Gutschrift-Felder überleben den Roundtrip (category-defs/settings)
+    assert.deepEqual(merged.teamKst, state.teamKst);
+    assert.equal(merged.accountingRecipient, state.accountingRecipient);
+});
+
+test('buildSplitFiles: Kostenpunkte ohne Projekt landen im Team ihres Mitarbeiters', () => {
+    const st = sampleState();
+    st.costItems = [
+        { id: 'c1', projectId: null, empId: 'e1', lines: [{ id: 'l', type: 'travel', amount: 10 }], amount: 10 },
+    ];
+    const files = app.buildSplitFiles(st);
+    assert.deepEqual(files['cost-items-AS.json'].costItems.map(c => c.id), ['c1']);
 });
 
 test('mergeSplitFiles: Fallback-Kaskade auf legacy categories.json', () => {

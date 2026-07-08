@@ -28,10 +28,14 @@ const EXPORTS = [
     'migrateCostItem', 'migrateCostItems', 'migrateExpensesToCostItems',
     'buildSplitFiles', 'mergeSplitFiles', 'saveSplitState', 'seedLastSaved',
     'pLimit',
+    // settlement.js
+    'SETTLEMENT_STATUSES', 'SETTLEMENT_STATUS_ORDER', 'getSettlementStatus',
+    'settlementAmount', 'aggregateSettlement', 'findDuplicateExpenseReport',
+    'buildAccountingEmail',
 ];
 
 function loadApp() {
-    const source = [read('config.js'), read('utils.js'), read('datalayer.js')].join('\n;\n');
+    const source = [read('config.js'), read('utils.js'), read('datalayer.js'), read('settlement.js')].join('\n;\n');
     const body = `${source}\n;return { ${EXPORTS.join(', ')} };`;
     // eslint-disable-next-line no-new-func
     return new Function(body)();

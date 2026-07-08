@@ -110,11 +110,13 @@ function buildSplitFiles(state) {
     const empAliases = state.empAliases || {};
     const fxRates = state.fxRates || null;
     const expenseCategories = state.expenseCategories || null;
+    const teamKst = state.teamKst || {};
+    const accountingRecipient = state.accountingRecipient || '';
     const files = {
         'employees.json':     { employees },
         'projects.json':      { projects },
-        'settings.json':      { invoiceRecipient, autoBackup, emailTemplate, empAliases, fxRates },
-        'category-defs.json': { empCategories, projCategories, projTypes, expenseCategories },
+        'settings.json':      { invoiceRecipient, autoBackup, emailTemplate, empAliases, fxRates, accountingRecipient },
+        'category-defs.json': { empCategories, projCategories, projTypes, expenseCategories, teamKst },
         'tasks.json':         { basicTasks, basicTasksMeta, offtimeTasks, customTrainingTasks },
         'inactive.json':      { inactiveBasicTasks, inactiveOfftimeTasks,
                                 inactiveSupportTasks, inactiveTrainingTasks },
@@ -163,6 +165,7 @@ function mergeSplitFiles({ employees, projects, settings,
         projCategories:     pick('projCategories', categoryDefs, cat) || [],
         projTypes:          pick('projTypes',      categoryDefs, cat) || [],
         expenseCategories:  pick('expenseCategories', categoryDefs, cat) || null,
+        teamKst:            pick('teamKst',           categoryDefs, cat) || {},
         basicTasks:         pick('basicTasks',         tasks, cat) || [],
         basicTasksMeta:     pick('basicTasksMeta',     tasks, cat) || {},
         offtimeTasks:       pick('offtimeTasks',       tasks, cat) || [],
@@ -176,6 +179,7 @@ function mergeSplitFiles({ employees, projects, settings,
         emailTemplate:        settings?.emailTemplate        || null,
         empAliases:           settings?.empAliases           || {},
         fxRates:              settings?.fxRates              || null,
+        accountingRecipient:  settings?.accountingRecipient  || '',
         appUsers:             usr.appUsers             || [],
         auditLog:             aud.auditLog             || []
     };

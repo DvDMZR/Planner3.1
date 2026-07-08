@@ -5,7 +5,7 @@ const SetupCatsView = ({ s, h }) => {
         inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks,
         inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks,
         expandedSetupCats, newEmpCat, newProjCat, newBasicTask, newOfftimeTask,
-        expenseCategories,
+        expenseCategories, teamKst,
         t,
     } = s;
     const {
@@ -13,7 +13,7 @@ const SetupCatsView = ({ s, h }) => {
         setInactiveBasicTasks, setOfftimeTasks, setInactiveOfftimeTasks,
         setInactiveSupportTasks, setInactiveTrainingTasks, setCustomTrainingTasks,
         setExpandedSetupCats, setNewEmpCat, setNewProjCat, setNewBasicTask, setNewOfftimeTask,
-        setExpenseCategories,
+        setExpenseCategories, setTeamKst,
     } = h;
 
     const [newTrainingTask, setNewTrainingTask] = useState('');
@@ -408,9 +408,33 @@ const SetupCatsView = ({ s, h }) => {
                         )}
                         <ul className="divide-y divide-slate-100">
                             {empCategories.map(cat => (
-                                <li key={cat} className="px-4 py-3 flex justify-between items-center text-sm">
-                                    <span className="text-slate-800">{cat}</span>
-                                    <button onClick={() => setEmpCategories(empCategories.filter(c => c !== cat))}
+                                <li key={cat} className="px-4 py-3 flex justify-between items-center gap-3 text-sm">
+                                    <span className="text-slate-800 flex-1">{cat}</span>
+                                    {/* Kostenstelle des Teams – Grundlage für die
+                                        Reisekosten-Gutschriften (Reisekostenübersicht) */}
+                                    <label className="flex items-center gap-1.5 text-xs text-slate-400">
+                                        {t('cats.kst')}
+                                        <input type="text" value={(teamKst || {})[cat] || ''}
+                                            onChange={e => {
+                                                const v = e.target.value;
+                                                setTeamKst(prev => {
+                                                    const next = { ...(prev || {}) };
+                                                    if (v.trim()) next[cat] = v.trim(); else delete next[cat];
+                                                    return next;
+                                                });
+                                            }}
+                                            placeholder={t('cats.kstPlaceholder')}
+                                            className="w-24 p-1.5 border border-slate-300 rounded text-sm text-slate-800"/>
+                                    </label>
+                                    <button onClick={() => {
+                                            setEmpCategories(empCategories.filter(c => c !== cat));
+                                            // KST-Zuordnung des gelöschten Teams mit aufräumen
+                                            setTeamKst(prev => {
+                                                if (!prev || !(cat in prev)) return prev;
+                                                const { [cat]: _gone, ...rest } = prev;
+                                                return rest;
+                                            });
+                                        }}
                                         className="text-rose-500 hover:text-rose-700"><IconX size={16}/></button>
                                 </li>
                             ))}

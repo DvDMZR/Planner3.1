@@ -16,7 +16,7 @@ const ProjectDetailsView = ({ s, h }) => {
         activeEmployees, activeEmpsByCategory, activeEmpCategories,
         projectsByCategory, projCategoriesFromProjects, timelineWeeks,
         currentWeekColRef, resourceScrollRef, timelineScrollRef,
-        empAliases, fxRates, expenseCategories,
+        empAliases, fxRates, expenseCategories, teamKst,
         language, t } = s;
     const { setActiveTab, setEmployees, setProjects, setAssignments,
         setCostItems, setEmpCategories, setProjCategories, setBasicTasks,
@@ -335,6 +335,8 @@ const ProjectDetailsView = ({ s, h }) => {
                 {isExpenseImportOpen && (
                     <ExpenseImportModal
                         proj={proj}
+                        projects={projects}
+                        teamKst={teamKst}
                         employees={employees}
                         assignments={assignments}
                         costItems={costItems}

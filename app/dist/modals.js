@@ -892,6 +892,11 @@ const CostItemModal = ({
     dateTo: existingItem?.dateTo || ''
   });
 
+  // Verrechnung (Prozess 2): Gutschrift-Status + Gegenkonto sind hier als
+  // Zweit-Editierstelle neben der Reisekostenübersicht pflegbar.
+  const [settleStatus, setSettleStatus] = useState(existingItem ? getSettlementStatus(existingItem) : projectId ? 'to_submit' : 'remain_on_kst');
+  const [targetAccount, setTargetAccount] = useState(existingItem?.targetAccount || '');
+
   // Lines are kept as strings while editing so empty inputs don't read as 0.
   const [lines, setLines] = useState(() => (existingItem?.lines || []).map(l => ({
     id: l.id || makeId('cl'),
@@ -952,7 +957,13 @@ const CostItemModal = ({
         comment: l.comment || ''
       };
     });
+    // Bestehende Felder (expenseReportId, reportKey, submittedBy, …) beim
+    // Edit erhalten – das Item wird sonst bei jedem Speichern auf die
+    // Formularfelder reduziert.
+    const prevStatus = existingItem ? getSettlementStatus(existingItem) : null;
+    const statusChanged = settleStatus !== prevStatus;
     const item = {
+      ...(existingItem || {}),
       id: existingItem?.id || makeId('ci'),
       projectId,
       empId: form.empId,
@@ -961,7 +972,16 @@ const CostItemModal = ({
       dateTo: form.dateTo || null,
       week: form.dateFrom ? getWeekString(new Date(form.dateFrom)) : null,
       lines: cleanedLines,
-      amount: cleanedLines.reduce((s, l) => s + (l.amount || 0), 0)
+      amount: cleanedLines.reduce((s, l) => s + (l.amount || 0), 0),
+      settlementStatus: settleStatus,
+      targetAccount: targetAccount.trim() || null,
+      // Zeitstempel nur beim Statuswechsel anfassen (setzen/abräumen)
+      ...(statusChanged ? settleStatus === 'submitted' ? {
+        submittedAt: new Date().toISOString()
+      } : {
+        submittedAt: null,
+        submittedBy: null
+      } : {})
     };
     if (existingItem) {
       setCostItems(costItems.map(c => c.id === existingItem.id ? item : c));
@@ -1114,7 +1134,28 @@ const CostItemModal = ({
     className: "text-xs text-slate-500"
   }, t('costitem.total')), /*#__PURE__*/React.createElement("span", {
     className: "text-base font-semibold text-slate-900 tabular-nums"
-  }, total.toFixed(2), " \u20AC")))), /*#__PURE__*/React.createElement("div", {
+  }, total.toFixed(2), " \u20AC"))), /*#__PURE__*/React.createElement("div", {
+    className: "p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center gap-3 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-medium text-slate-600"
+  }, t('costitem.settlement'), ":"), /*#__PURE__*/React.createElement("select", {
+    value: settleStatus,
+    onChange: e => setSettleStatus(e.target.value),
+    className: "p-1.5 border border-slate-300 rounded-md text-xs bg-white"
+  }, SETTLEMENT_STATUS_ORDER.map(k => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k
+  }, t(`travel.status.${k}`)))), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-slate-500 ml-1"
+  }, t('costitem.targetAccount'), ":"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: targetAccount,
+    onChange: e => setTargetAccount(e.target.value),
+    placeholder: t('costitem.targetAccountPlaceholder'),
+    className: "w-28 p-1.5 border border-slate-300 rounded text-xs font-mono"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] text-slate-400"
+  }, t('costitem.settlementHint')))), /*#__PURE__*/React.createElement("div", {
     className: "p-4 bg-slate-50 border-t border-slate-100 flex justify-between"
   }, existingItem ? /*#__PURE__*/React.createElement("button", {
     onClick: handleDelete,

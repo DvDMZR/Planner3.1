@@ -134,6 +134,7 @@ function App() {
     name: '',
     category: '',
     projectNumber: '',
+    kst: '',
     address: '',
     country: '',
     startWeek: '',
@@ -190,6 +191,11 @@ function App() {
   const [fxRates, setFxRates] = useState(null);
   // Spesen-Kategorien (Labels/Keywords/eigene Kategorien); null = Defaults.
   const [expenseCategories, setExpenseCategories] = useState(null);
+  // Reisekosten-Gutschriften (Prozess 2): KST-Nummer je Team ({ Team: '4711' },
+  // persistiert in category-defs.json) und E-Mail-Empfänger der internen
+  // Buchhaltung (settings.json, bewusst getrennt vom invoiceRecipient).
+  const [teamKst, setTeamKst] = useState({});
+  const [accountingRecipient, setAccountingRecipient] = useState('');
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       return validateRestoredSession(JSON.parse(sessionStorage.getItem('plannerSession')));
@@ -415,7 +421,7 @@ function App() {
     setCurrentUser(null);
     // Redirect away from restricted tabs
     setActiveTab(prev => {
-      const restricted = ['utilization', 'setup_emp', 'setup_proj', 'setup_cats', 'data', 'audit'];
+      const restricted = ['utilization', 'setup_emp', 'setup_proj', 'setup_cats', 'travel', 'data', 'audit'];
       return restricted.includes(prev) ? 'resource' : prev;
     });
   }, []);
@@ -665,6 +671,8 @@ function App() {
         if (parsedData.empAliases) setEmpAliases(parsedData.empAliases);
         if (parsedData.fxRates) setFxRates(parsedData.fxRates);
         if (parsedData.expenseCategories) setExpenseCategories(parsedData.expenseCategories);
+        if (parsedData.teamKst) setTeamKst(parsedData.teamKst);
+        if (parsedData.accountingRecipient) setAccountingRecipient(parsedData.accountingRecipient);
         // Migrate plaintext PINs to hashes and seed admin if missing.
         // Async; result triggers a re-render and the normal save cycle
         // will persist the hashed records.
@@ -934,7 +942,9 @@ function App() {
       emailTemplate,
       empAliases,
       fxRates,
-      expenseCategories
+      expenseCategories,
+      teamKst,
+      accountingRecipient
     };
     // Remote stores (SharePoint, local FS) carry the full user records
     // including PIN hashes so accounts survive a page reload. The localStorage
@@ -1074,7 +1084,7 @@ function App() {
         }
       }, 1500);
     }
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates, expenseCategories]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates, expenseCategories, teamKst, accountingRecipient]);
 
   // Show the generated initial admin PIN once as a persistent toast so the
   // operator can note it down and change it immediately after first login.
@@ -1193,6 +1203,8 @@ function App() {
       empAliases,
       fxRates,
       expenseCategories,
+      teamKst,
+      accountingRecipient,
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       backupReason: reason,
@@ -1276,7 +1288,7 @@ function App() {
       ok: false,
       error: 'Kein Backup-Ziel verfügbar (weder SharePoint noch lokaler Ordner verbunden).'
     };
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates, expenseCategories]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates, expenseCategories, teamKst, accountingRecipient]);
 
   // Mirror runBackup into a ref so loginUser (which has no deps) can call
   // it with the latest closure.
@@ -1354,9 +1366,11 @@ function App() {
       emailTemplate,
       empAliases,
       fxRates,
-      expenseCategories
+      expenseCategories,
+      teamKst,
+      accountingRecipient
     };
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates, expenseCategories]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, projTypes, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, autoBackup, emailTemplate, empAliases, fxRates, expenseCategories, teamKst, accountingRecipient]);
 
   // Flush pending local save before the page unloads so a fast tab close
   // doesn't drop the most recent edits.
@@ -1422,6 +1436,8 @@ function App() {
       ...data.fxRates
     }));
     if (data.expenseCategories) setExpenseCategories(data.expenseCategories);
+    if (data.teamKst) setTeamKst(data.teamKst);
+    if (data.accountingRecipient !== undefined) setAccountingRecipient(data.accountingRecipient);
     // Skip updating users if the incoming snapshot is a stripped localStorage
     // copy (no PIN data present). PIN hashes are intentionally omitted from
     // localStorage to avoid persisting secrets; only SP/FS snapshots carry
@@ -2366,6 +2382,8 @@ function App() {
       empAliases,
       fxRates,
       expenseCategories,
+      teamKst,
+      accountingRecipient,
       appUsers: stripUserSecrets(appUsers),
       auditLog,
       exportedAt: new Date().toISOString(),
@@ -2379,7 +2397,7 @@ function App() {
     a.href = url;
     a.download = `Einsatzplanung3.0_Backup_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
-  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates, expenseCategories]);
+  }, [employees, projects, assignments, expenses, costItems, empCategories, projCategories, basicTasks, basicTasksMeta, inactiveBasicTasks, offtimeTasks, inactiveOfftimeTasks, inactiveSupportTasks, inactiveTrainingTasks, customTrainingTasks, invoiceRecipient, appUsers, auditLog, empAliases, fxRates, expenseCategories, teamKst, accountingRecipient]);
   const importData = useCallback(e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -2427,6 +2445,8 @@ function App() {
         if (parsed.empAliases) setEmpAliases(parsed.empAliases);
         if (parsed.fxRates) setFxRates(parsed.fxRates);
         if (parsed.expenseCategories) setExpenseCategories(parsed.expenseCategories);
+        if (parsed.teamKst) setTeamKst(parsed.teamKst);
+        if (parsed.accountingRecipient !== undefined) setAccountingRecipient(parsed.accountingRecipient);
         if (parsed.auditLog) setAuditLog(parsed.auditLog);
         // appUsers is deliberately NOT imported: a backup can otherwise
         // inject attacker-controlled pinHash/pinSalt records. Local user
@@ -2700,6 +2720,7 @@ function App() {
         name: '',
         category: projCategories[0] || '',
         projectNumber: '',
+        kst: '',
         address: '',
         country: '',
         startWeek: weeks[0]?.id || '',
@@ -2801,6 +2822,20 @@ function App() {
       placeholder: "GEA-2024-00001",
       className: `${fieldCls} font-mono`
     })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "block text-xs text-slate-700 mb-1 font-semibold"
+    }, t('projForm.kst')), /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      maxLength: 20,
+      value: projForm.kst || '',
+      onChange: e => setProjForm({
+        ...projForm,
+        kst: e.target.value
+      }),
+      placeholder: "z.B. 77001",
+      className: `${fieldCls} font-mono`
+    }), /*#__PURE__*/React.createElement("p", {
+      className: "text-[11px] text-slate-400 mt-1"
+    }, t('projForm.kstHint'))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"
     }, t('projForm.category')), /*#__PURE__*/React.createElement("select", {
       value: projForm.category,
@@ -3309,7 +3344,9 @@ function App() {
     emailTemplate,
     empAliases,
     fxRates,
-    expenseCategories
+    expenseCategories,
+    teamKst,
+    accountingRecipient
   };
   const h = useMemo(() => ({
     setActiveTab,
@@ -3376,6 +3413,9 @@ function App() {
     setEmpAliases,
     setFxRates,
     setExpenseCategories,
+    setTeamKst,
+    setAccountingRecipient,
+    logAudit,
     showToast,
     dismissToast,
     requestConfirm,
@@ -3490,6 +3530,13 @@ function App() {
         }),
         onSelect: () => setActiveTab('setup_cats')
       }, {
+        id: 'nav-travel',
+        label: t('nav.travelCosts'),
+        icon: /*#__PURE__*/React.createElement(IconFileText, {
+          size: 16
+        }),
+        onSelect: () => setActiveTab('travel')
+      }, {
         id: 'nav-data',
         label: t('nav.systemExport'),
         icon: /*#__PURE__*/React.createElement(IconSettings, {
@@ -3574,6 +3621,9 @@ function App() {
     s: s,
     h: h
   }), activeTab === 'setup_cats' && currentUser && /*#__PURE__*/React.createElement(SetupCatsView, {
+    s: s,
+    h: h
+  }), activeTab === 'travel' && currentUser && /*#__PURE__*/React.createElement(TravelCostsView, {
     s: s,
     h: h
   }), activeTab === 'data' && currentUser && /*#__PURE__*/React.createElement(DataView, {
