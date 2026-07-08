@@ -86,6 +86,76 @@ const findDuplicateExpenseReport = (costItems, reportId, projectId) => {
     };
 };
 
+// Schwester-Kostenpunkt derselben Reise finden: gleiche Abrechnung (ERP-ID)
+// bzw. explizite Verknüpfung (relatedItemId aus einem früheren Verschieben),
+// gleicher Mitarbeiter, gegenteiliger Buchungstyp (Projekt ↔ intern).
+const findTripSibling = (costItems, source, wantProject) =>
+    (costItems || []).find(c => c && c.id !== source.id
+        && c.empId === source.empId
+        && (wantProject ? c.projectId != null : c.projectId == null)
+        && ((source.expenseReportId && c.expenseReportId === source.expenseReportId)
+            || c.relatedItemId === source.id
+            || source.relatedItemId === c.id)) || null;
+
+// Einzelposten einer Reise nachträglich zwischen Projekt-Kostenpunkt und
+// internem KST-Kostenpunkt verschieben. Rein funktional: liefert die neue
+// costItems-Liste, mutiert nichts.
+//   - Quelle ist ein Projekt-Kostenpunkt → Zeile wandert in den internen
+//     Schwester-Kostenpunkt derselben Reise (wird bei Bedarf angelegt,
+//     Status 'remain_on_kst').
+//   - Quelle ist intern → Zeile wandert zurück in den Projekt-Schwester-
+//     Kostenpunkt; ohne identifizierbares Projekt-Gegenstück (error
+//     'noProjectSibling') passiert nichts.
+//   - Verliert die Quelle ihre letzte Zeile, wird sie komplett entfernt.
+// opts.kstSuffix: Beschreibungs-Zusatz für einen neu angelegten internen
+// Kostenpunkt (i18n-Label, z. B. "KST-Anteil").
+const moveCostLine = (costItems, sourceItemId, lineId, opts = {}) => {
+    const items = costItems || [];
+    const source = items.find(c => c && c.id === sourceItemId);
+    const line = source && (source.lines || []).find(l => l.id === lineId);
+    if (!source || !line) return { items, moved: false, error: 'notFound' };
+    const toKst = source.projectId != null;
+    const sibling = findTripSibling(items, source, !toKst);
+    if (!toKst && !sibling) return { items, moved: false, error: 'noProjectSibling' };
+
+    const sumOf = (ls) => Math.round(ls.reduce((s, l) => s + (l.amount || 0), 0) * 100) / 100;
+    const newSourceLines = (source.lines || []).filter(l => l.id !== lineId);
+    const created = sibling ? null : {
+        id: makeId('ci'),
+        projectId: null,
+        empId: source.empId,
+        description: [source.description, opts.kstSuffix].filter(Boolean).join(' · '),
+        dateFrom: source.dateFrom || null,
+        dateTo: source.dateTo || null,
+        week: source.week || null,
+        lines: [],
+        amount: 0,
+        expenseReportId: source.expenseReportId || null,
+        reportKey: source.reportKey || null,
+        targetAccount: null,
+        settlementStatus: 'remain_on_kst',
+        // Verknüpfung für den Rückweg, falls die Reise keine ERP-ID trägt
+        relatedItemId: source.id,
+    };
+    const targetId = (sibling || created).id;
+
+    const out = [];
+    items.forEach(c => {
+        if (c.id === source.id) {
+            // Quelle ohne letzte Zeile komplett auflösen
+            if (newSourceLines.length > 0) out.push({ ...c, lines: newSourceLines, amount: sumOf(newSourceLines) });
+        } else if (c.id === targetId) {
+            const lines = [...(c.lines || []), line];
+            out.push({ ...c, lines, amount: sumOf(lines) });
+        } else {
+            out.push(c);
+        }
+    });
+    if (created) out.push({ ...created, lines: [line], amount: sumOf([line]) });
+
+    return { items: out, moved: true, targetId, direction: toKst ? 'toKst' : 'toProject' };
+};
+
 // Komprimierte Gesamtübersicht für die Buchhaltungs-E-Mail in Tabellenform:
 // eine Zeile pro Posten mit den Pflichtdaten Mitarbeiter, Abrechnungs-
 // schlüssel, Betrag, Team-KST (Gutschrift) und Ziel-Stelle/Gegenkonto

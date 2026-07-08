@@ -580,6 +580,16 @@ const TRANSLATIONS = {
         'travel.selectAllVisible': 'Alle angezeigten auswählen',
         'travel.selectedSum':      '{count} Reisen ausgewählt',
         'travel.openMailBtn':      'E-Mail öffnen',
+        'travel.moveToKst':        'Auf KST',
+        'travel.moveToKstHint':    'Posten aus dem Projekt herauslösen – er verbleibt dann als interner Kostenpunkt auf der Team-KST.',
+        'travel.moveToProject':    'Zum Projekt',
+        'travel.moveToProjectHint':'Posten wieder dem Projekt-Kostenpunkt dieser Reise zuordnen ({project}).',
+        'travel.movedToKst':       'Posten auf die KST verschoben.',
+        'travel.movedToProject':   'Posten dem Projekt zugeordnet.',
+        'travel.noProjectSibling': 'Kein zugehöriger Projekt-Kostenpunkt dieser Reise gefunden.',
+        'travel.moveSubmittedTitle':'Bereits übermittelten Posten verschieben?',
+        'travel.moveSubmittedMsg': 'Dieser Kostenpunkt ist bereits als „An Buchhaltung übermittelt" markiert. Das Verschieben ändert die übermittelten Summen – ggf. die Buchhaltung informieren.',
+        'travel.moveBtn':          'Verschieben',
 
         // ── Planungsdialog: Typ-Buttons & Validierung ──────────
         'modal.typeTraining':       'Training',
@@ -1271,6 +1281,16 @@ const TRANSLATIONS = {
         'travel.selectAllVisible': 'Select all shown',
         'travel.selectedSum':      '{count} trips selected',
         'travel.openMailBtn':      'Open email',
+        'travel.moveToKst':        'To cost centre',
+        'travel.moveToKstHint':    'Detach the item from the project – it remains on the team cost centre as an internal cost item.',
+        'travel.moveToProject':    'To project',
+        'travel.moveToProjectHint':'Reassign the item to this trip’s project cost item ({project}).',
+        'travel.movedToKst':       'Item moved to the cost centre.',
+        'travel.movedToProject':   'Item assigned to the project.',
+        'travel.noProjectSibling': 'No matching project cost item found for this trip.',
+        'travel.moveSubmittedTitle':'Move an already transmitted item?',
+        'travel.moveSubmittedMsg': 'This cost item is already marked as "Transmitted to accounting". Moving it changes the transmitted totals – consider informing accounting.',
+        'travel.moveBtn':          'Move',
 
         // ── Assignment modal: type buttons & validation ────────
         'modal.typeTraining':       'Training',

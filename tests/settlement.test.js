@@ -8,7 +8,7 @@ const app = loadApp();
 const {
     SETTLEMENT_STATUSES, SETTLEMENT_STATUS_ORDER, getSettlementStatus,
     settlementAmount, aggregateSettlement, findDuplicateExpenseReport,
-    buildAccountingEmail,
+    buildAccountingEmail, moveCostLine,
 } = app;
 
 const employees = [
@@ -154,4 +154,85 @@ test('buildAccountingEmail: fehlende KST/Ziel-Stelle → "-"', () => {
     const items = [ci({ empId: 'emp-unbekannt', projectId: 'proj-2' })];
     const mail = buildAccountingEmail(items, employees, projects, teamKst);
     assert.match(mail.body, /Unbekannt\s*\|\s*-\s*\|\s*100\.00\s*\|\s*-\s*\|\s*-/);
+});
+
+// ── moveCostLine (nachträglicher Split je Einzelposten) ─────────────────────
+const tripItems = () => [
+    { id: 'ci-p', projectId: 'proj-1', empId: 'emp-1', description: 'Spesen Reise',
+      dateFrom: '2026-03-02', week: '2026-W10', expenseReportId: 'R-1', reportKey: '943829',
+      targetAccount: '77001', settlementStatus: 'to_submit',
+      lines: [
+          { id: 'l1', type: 'travel', amount: 100 },
+          { id: 'l2', type: 'accommodation', amount: 50 },
+      ], amount: 150 },
+    { id: 'ci-x', projectId: 'proj-2', empId: 'emp-2', lines: [{ id: 'lx', type: 'travel', amount: 9 }], amount: 9 },
+];
+
+test('moveCostLine: Projekt → KST legt internen Schwester-Kostenpunkt an', () => {
+    const res = moveCostLine(tripItems(), 'ci-p', 'l2', { kstSuffix: 'KST-Anteil' });
+    assert.equal(res.moved, true);
+    assert.equal(res.direction, 'toKst');
+    const proj = res.items.find(c => c.id === 'ci-p');
+    assert.deepEqual(proj.lines.map(l => l.id), ['l1']);
+    assert.equal(proj.amount, 100);
+    const internal = res.items.find(c => c.projectId == null);
+    assert.ok(internal);
+    assert.equal(internal.id, res.targetId);
+    assert.deepEqual(internal.lines.map(l => l.id), ['l2']);
+    assert.equal(internal.amount, 50);
+    assert.equal(internal.settlementStatus, 'remain_on_kst');
+    assert.equal(internal.expenseReportId, 'R-1');
+    assert.equal(internal.reportKey, '943829');
+    assert.match(internal.description, /KST-Anteil/);
+    // Unbeteiligter Kostenpunkt bleibt unangetastet
+    assert.ok(res.items.find(c => c.id === 'ci-x'));
+});
+
+test('moveCostLine: zweiter Move nutzt den vorhandenen internen Kostenpunkt', () => {
+    const first = moveCostLine(tripItems(), 'ci-p', 'l2', { kstSuffix: 'KST-Anteil' });
+    const second = moveCostLine(first.items, 'ci-p', 'l1');
+    assert.equal(second.moved, true);
+    // Quelle ist leer geworden → aufgelöst; nur intern + fremder Punkt übrig
+    assert.equal(second.items.find(c => c.id === 'ci-p'), undefined);
+    const internal = second.items.find(c => c.projectId == null);
+    assert.deepEqual(internal.lines.map(l => l.id).sort(), ['l1', 'l2']);
+    assert.equal(internal.amount, 150);
+    assert.equal(second.items.length, 2);
+});
+
+test('moveCostLine: KST → Projekt über die Abrechnungs-ID zurück', () => {
+    const split = moveCostLine(tripItems(), 'ci-p', 'l2', { kstSuffix: 'KST-Anteil' });
+    const internalId = split.targetId;
+    const back = moveCostLine(split.items, internalId, 'l2');
+    assert.equal(back.moved, true);
+    assert.equal(back.direction, 'toProject');
+    const proj = back.items.find(c => c.id === 'ci-p');
+    assert.deepEqual(proj.lines.map(l => l.id).sort(), ['l1', 'l2']);
+    assert.equal(proj.amount, 150);
+    // Interner Punkt hat seine letzte Zeile verloren → aufgelöst
+    assert.equal(back.items.find(c => c.id === internalId), undefined);
+});
+
+test('moveCostLine: ohne Projekt-Gegenstück kein Rückweg (noProjectSibling)', () => {
+    const items = [{ id: 'ci-i', projectId: null, empId: 'emp-1',
+        lines: [{ id: 'l1', type: 'meals', amount: 20 }], amount: 20 }];
+    const res = moveCostLine(items, 'ci-i', 'l1');
+    assert.equal(res.moved, false);
+    assert.equal(res.error, 'noProjectSibling');
+    assert.deepEqual(res.items, items);
+});
+
+test('moveCostLine: Rückweg über relatedItemId, wenn keine ERP-ID vorhanden', () => {
+    const items = [
+        { id: 'ci-p', projectId: 'proj-1', empId: 'emp-1', description: 'Manuell',
+          lines: [{ id: 'l1', type: 'travel', amount: 30 }, { id: 'l2', type: 'meals', amount: 10 }], amount: 40 },
+    ];
+    const split = moveCostLine(items, 'ci-p', 'l2', { kstSuffix: 'KST-Anteil' });
+    const internal = split.items.find(c => c.projectId == null);
+    assert.equal(internal.expenseReportId, null);
+    assert.equal(internal.relatedItemId, 'ci-p');
+    const back = moveCostLine(split.items, internal.id, 'l2');
+    assert.equal(back.moved, true);
+    const proj = back.items.find(c => c.id === 'ci-p');
+    assert.deepEqual(proj.lines.map(l => l.id).sort(), ['l1', 'l2']);
 });

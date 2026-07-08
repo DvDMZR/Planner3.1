@@ -143,6 +143,41 @@ const TravelCostsView = ({
     targetAccount: value
   } : c));
 
+  // Einzelposten nachträglich zwischen Projekt und KST verschieben
+  // (moveCostLine in settlement.js legt bei Bedarf den internen
+  // Schwester-Kostenpunkt der Reise an bzw. löst leere Punkte auf).
+  const moveLine = (ci, line) => {
+    const doMove = () => {
+      const res = moveCostLine(costItems, ci.id, line.id, {
+        kstSuffix: t('expense.kstSplitSuffix')
+      });
+      if (!res.moved) {
+        if (res.error === 'noProjectSibling') showToast(t('travel.noProjectSibling'), {
+          type: 'warning'
+        });
+        return;
+      }
+      setCostItems(res.items);
+      const emp = employeeById.get(ci.empId);
+      logAudit('settlement_status', `Einzelposten ${(line.amount || 0).toFixed(2)} EUR (${emp?.name || ci.empId}) ${res.direction === 'toKst' ? 'auf KST verschoben' : 'dem Projekt zugeordnet'}`);
+      showToast(t(res.direction === 'toKst' ? 'travel.movedToKst' : 'travel.movedToProject'), {
+        type: 'success',
+        duration: 3000
+      });
+    };
+    if (getSettlementStatus(ci) === 'submitted') {
+      requestConfirm({
+        title: t('travel.moveSubmittedTitle'),
+        message: t('travel.moveSubmittedMsg'),
+        confirmLabel: t('travel.moveBtn'),
+        danger: true,
+        onConfirm: doMove
+      });
+    } else {
+      doMove();
+    }
+  };
+
   // Bulk: alle offenen Posten eines Teams auf der KST belassen (v. a. für
   // Alt-Bestände, die per Lazy-Default auf 'Zu übermitteln' stehen).
   const bulkRemainOnKst = group => {
@@ -493,6 +528,11 @@ const TravelCostsView = ({
         className: "rounded-lg border border-slate-200 bg-white p-3 space-y-1.5"
       }, (ci.lines || []).map(l => {
         const lcfg = COST_LINE_TYPES[l.type] || COST_LINE_TYPES.other;
+        // Verschieben nur für Reisekosten-Zeilen (keine Stunden):
+        // Projekt-Posten → auf KST herauslösen; interne Posten →
+        // zurück zum Projekt-Gegenstück derselben Reise (falls vorhanden).
+        const projSibling = !ci.projectId && l.type !== 'hours' ? findTripSibling(costItems, ci, true) : null;
+        const canMove = l.type !== 'hours' && (ci.projectId || projSibling);
         return /*#__PURE__*/React.createElement("div", {
           key: l.id,
           className: "flex items-center gap-2 text-xs"
@@ -504,7 +544,11 @@ const TravelCostsView = ({
           className: "text-slate-500 truncate"
         }, l.comment), /*#__PURE__*/React.createElement("span", {
           className: "text-slate-700 tabular-nums ml-auto"
-        }, (l.amount || 0).toFixed(2), " \u20AC"));
+        }, (l.amount || 0).toFixed(2), " \u20AC"), canMove && /*#__PURE__*/React.createElement("button", {
+          onClick: () => moveLine(ci, l),
+          title: ci.projectId ? t('travel.moveToKstHint') : t('travel.moveToProjectHint').replace('{project}', projectById.get(projSibling?.projectId)?.name || ''),
+          className: "shrink-0 px-2 py-0.5 rounded border border-slate-300 text-slate-500 hover:border-gea-400 hover:text-gea-700 hover:bg-gea-50 font-medium"
+        }, ci.projectId ? `→ ${t('travel.moveToKst')}` : `→ ${t('travel.moveToProject')}`));
       }), /*#__PURE__*/React.createElement("div", {
         className: "flex items-center gap-3 pt-1.5 border-t border-slate-100 text-xs text-slate-400"
       }, ci.expenseReportId && /*#__PURE__*/React.createElement("span", null, t('expense.reportId'), ": ", /*#__PURE__*/React.createElement("span", {
