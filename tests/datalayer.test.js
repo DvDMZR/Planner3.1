@@ -183,17 +183,43 @@ test('saveSplitState: Wipe-Guard blockt non-empty → empty', async () => {
     assert.ok(JSON.parse(lastSaved['employees.json']).employees.length > 0);
 });
 
-test('saveSplitState: entferntes Team wird geleert (kein Datenrest)', async () => {
+test('saveSplitState: Team-Dateien sind gegen Leer-Wipes geschützt', async () => {
+    // Ein Schrumpfen einer Team-Datei von "hat Daten" auf "leer" wird als
+    // State-Load-Race gewertet und NICHT geschrieben (Datenverlust-Schutz;
+    // realer Vorfall: alle Reisekosten eines Teams verschwunden). Das gilt
+    // auch für das Entfernen eines Teams – dessen Datei bleibt dann mit
+    // altem Inhalt liegen, wird aber vom Loader nicht mehr gelesen.
     const state = sampleState();
     const lastSaved = {};
     app.seedLastSaved(state, lastSaved);
-    // Team AS verschwindet aus den Kategorien und hat keine Zuweisungen mehr.
     const st2 = { ...state, empCategories: ['CMS', 'Other'],
         employees: state.employees.filter(e => e.id !== 'e1'),
-        assignments: state.assignments.filter(a => a.empId !== 'e1') };
+        assignments: state.assignments.filter(a => a.empId !== 'e1'),
+        costItems: [] };
     const writes = await runSave(st2, lastSaved);
-    assert.ok(writes.includes('assignments-AS.json'), 'AS-Datei muss geleert werden');
-    assert.deepEqual(JSON.parse(lastSaved['assignments-AS.json']), { assignments: [] });
+    assert.ok(!writes.includes('assignments-AS.json'), 'assignments-AS.json darf nicht gewiped werden');
+    assert.ok(!writes.includes('cost-items-CMS.json'), 'cost-items-CMS.json darf nicht gewiped werden');
+    // Diff-Basis unangetastet → nächster Save mit echten Daten geht durch.
+    assert.ok(JSON.parse(lastSaved['assignments-AS.json']).assignments.length > 0);
+    assert.ok(JSON.parse(lastSaved['cost-items-CMS.json']).costItems.length > 0);
+});
+
+test('loadChangedTeamFilesSp: Lesefehler leert das Team NICHT, sondern meldet failedFiles', async () => {
+    // spLoadFile wird im Test-Bundle als Global gestubbt: AS liefert Daten,
+    // CMS schlägt fehl (transienter Netz-/Throttling-Fehler).
+    globalThis.spLoadFile = async (ctx, f) => {
+        if (f === 'cost-items-AS.json') return { costItems: [{ id: 'c9', empId: 'e1' }] };
+        throw new Error('503 throttled');
+    };
+    try {
+        const res = await app.loadChangedTeamFilesSp({}, ['cost-items-AS.json', 'cost-items-CMS.json', 'assignments-CMS.json']);
+        assert.deepEqual(res.costItemsByTeam, { AS: [{ id: 'c9', empId: 'e1' }] });
+        assert.equal(res.costItemsByTeam.CMS, undefined);
+        assert.deepEqual(res.assignmentsByTeam, {});
+        assert.deepEqual(res.failedFiles.sort(), ['assignments-CMS.json', 'cost-items-CMS.json']);
+    } finally {
+        delete globalThis.spLoadFile;
+    }
 });
 
 test('saveSplitState: Rückgabewert = Anzahl geschriebener Dateien (ohne meta.json)', async () => {

@@ -27,7 +27,7 @@ const EXPORTS = [
     // datalayer.js
     'migrateCostItem', 'migrateCostItems', 'migrateExpensesToCostItems',
     'buildSplitFiles', 'mergeSplitFiles', 'saveSplitState', 'seedLastSaved',
-    'pLimit',
+    'pLimit', 'loadChangedTeamFilesSp',
     // settlement.js
     'SETTLEMENT_STATUSES', 'SETTLEMENT_STATUS_ORDER', 'getSettlementStatus',
     'settlementAmount', 'aggregateSettlement', 'findDuplicateExpenseReport',

@@ -515,6 +515,10 @@ const TRANSLATIONS = {
         'expense.targetAccount':   'Gegenkonto/Ziel-Stelle',
         'expense.targetAccountPlaceholder': 'z.B. 77001',
         'expense.targetAccountHint':'Vorbelegt mit der Projekt-KST; Ziel der Umbuchung durch die Buchhaltung.',
+        'expense.rowToKst':        'KST',
+        'expense.rowToKstHint':    'Abhaken: Posten wird nicht dem Projekt zugeordnet, sondern verbleibt auf der Team-KST.',
+        'expense.kstSplitSuffix':  'KST-Anteil',
+        'expense.kstSplitInfo':    '{count} Posten werden nicht dem Projekt zugeordnet und verbleiben als eigener Kostenpunkt auf der Team-KST.',
 
         // ── Reisekostenübersicht (Verwaltung, Gutschrift-Tracking) ──
         'travel.title':            'Reisekostenübersicht',
@@ -567,6 +571,15 @@ const TRANSLATIONS = {
         'travel.confirmSubmitMsg': 'Die E-Mail wurde erzeugt. Sollen die {count} enthaltenen Posten ({total} EUR) jetzt als „An Buchhaltung übermittelt" markiert werden? Sie werden dann vom KST-Gesamtminus abgezogen.',
         'travel.confirmSubmitBtn': 'Als übermittelt markieren',
         'travel.markedSubmitted':  'Posten als „An Buchhaltung übermittelt" markiert.',
+        'travel.expand':           'Aufklappen',
+        'travel.collapse':         'Einklappen',
+        'travel.detailsHint':      'Einzelposten anzeigen',
+        'travel.openProjectHint':  'Projektdetails öffnen',
+        'travel.sendModalTitle':   'An Buchhaltung übermitteln',
+        'travel.sendModalHint':    'Wähle die Reisen aus, die in die Gutschrift-E-Mail (Tabellenform) aufgenommen werden.',
+        'travel.selectAllVisible': 'Alle angezeigten auswählen',
+        'travel.selectedSum':      '{count} Reisen ausgewählt',
+        'travel.openMailBtn':      'E-Mail öffnen',
 
         // ── Planungsdialog: Typ-Buttons & Validierung ──────────
         'modal.typeTraining':       'Training',
@@ -1193,6 +1206,10 @@ const TRANSLATIONS = {
         'expense.targetAccount':   'Offset account / target',
         'expense.targetAccountPlaceholder': 'e.g. 77001',
         'expense.targetAccountHint':'Pre-filled with the project cost centre; target of the accounting rebooking.',
+        'expense.rowToKst':        'CC',
+        'expense.rowToKstHint':    'Check: item is not assigned to the project and remains on the team cost centre.',
+        'expense.kstSplitSuffix':  'Cost-centre share',
+        'expense.kstSplitInfo':    '{count} items are not assigned to the project and remain on the team cost centre as a separate cost item.',
 
         // ── Travel cost overview (admin, credit tracking) ──────
         'travel.title':            'Travel Cost Overview',
@@ -1245,6 +1262,15 @@ const TRANSLATIONS = {
         'travel.confirmSubmitMsg': 'The email has been generated. Mark the {count} included items ({total} EUR) as "Transmitted to accounting" now? They will then be deducted from the cost-centre deficit.',
         'travel.confirmSubmitBtn': 'Mark as transmitted',
         'travel.markedSubmitted':  'Items marked as "Transmitted to accounting".',
+        'travel.expand':           'Expand',
+        'travel.collapse':         'Collapse',
+        'travel.detailsHint':      'Show line items',
+        'travel.openProjectHint':  'Open project details',
+        'travel.sendModalTitle':   'Transmit to accounting',
+        'travel.sendModalHint':    'Select the trips to include in the credit email (table form).',
+        'travel.selectAllVisible': 'Select all shown',
+        'travel.selectedSum':      '{count} trips selected',
+        'travel.openMailBtn':      'Open email',
 
         // ── Assignment modal: type buttons & validation ────────
         'modal.typeTraining':       'Training',

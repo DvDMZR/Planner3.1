@@ -59,6 +59,9 @@ const ExpenseImportModal = ({
     const n = parseFloat(String(v).replace(',', '.'));
     return Number.isFinite(n) && n >= 0 ? n : 0;
   };
+  // Projekt-Anzeige wie in den Planungsdialogen: Anlagentyp, Name, Größe.
+  const projLabel = p => [p.projType, p.name, p.size].filter(v => v !== undefined && v !== null && String(v).trim() !== '').join(' ');
+  const sortedProjects = useMemo(() => [...(projects || [])].sort((a, b) => projLabel(a).localeCompare(projLabel(b), 'de')), [projects]);
   const activeEmployees = useMemo(() => (employees || []).filter(e => e.active !== false), [employees]);
   // Konfigurierbare Kategorien (Verwaltung → Kategorien → Spesen-Kategorien)
   const cats = useMemo(() => normalizeExpenseCategories(expenseCategories), [expenseCategories]);
@@ -85,6 +88,9 @@ const ExpenseImportModal = ({
     setRows(result.items.map(it => ({
       ...it,
       included: true,
+      // Bei Projekt-Zuordnung abwählbar: Posten mit toKst landen nicht
+      // auf dem Projekt, sondern verbleiben auf der Team-KST.
+      toKst: false,
       eur: Number.isFinite(convertToEur(it.amount, it.currency, fxRates)) ? String(convertToEur(it.amount, it.currency, fxRates)) : ''
     })));
     // Mitarbeiter auflösen; ohne exakten Match ggf. Vorschlag vorbelegen
@@ -127,12 +133,13 @@ const ExpenseImportModal = ({
     return [...byProject.entries()].map(([pid, weeks]) => ({
       project: (projects || []).find(p => p.id === pid),
       weeks: [...weeks].sort(compareWeekIds)
-    })).filter(e => e.project).sort((a, b) => b.weeks.length - a.weeks.length);
+    })).filter(e => e.project).sort((a, b) => projLabel(a.project).localeCompare(projLabel(b.project), 'de'));
   }, [fixedProject, effectiveEmpId, rows, assignments, projects]);
 
   // Effektives Buchungsziel aus der Wahl ableiten. 'auto' folgt der
-  // Einsatzplanung (bestgeplantes Projekt), sonst gilt die explizite Wahl.
-  const autoTargetId = plannedProjects[0]?.project.id || null;
+  // Einsatzplanung (Projekt mit den meisten überlappenden Wochen), sonst
+  // gilt die explizite Wahl.
+  const autoTargetId = plannedProjects.reduce((best, e) => !best || e.weeks.length > best.weeks.length ? e : best, null)?.project.id || null;
   const targetProjectId = fixedProject ? fixedProject.id : targetChoice === 'auto' ? autoTargetId : targetChoice === 'internal' ? null : targetChoice === 'other' ? otherProjectId || null : targetChoice;
   const targetProject = fixedProject || (targetProjectId ? (projects || []).find(p => p.id === targetProjectId) || null : null);
 
@@ -249,8 +256,7 @@ const ExpenseImportModal = ({
         hours: 0
       });
     });
-    const dates = included.map(r => r.date).sort();
-    const lines = included.map(r => {
+    const makeLines = rs => rs.map(r => {
       const cat = catById.get(r.category) || catById.get('other');
       // Custom-Kategorien landen in ihrer Export-Kostenart (lineType);
       // ihr Label wandert in den Kommentar, damit die Info erhalten bleibt.
@@ -262,30 +268,70 @@ const ExpenseImportModal = ({
         comment: [labelPrefix, r.type, r.vendor, r.location, fmtDate(r.date)].filter(Boolean).join(' · ')
       };
     });
-    const item = {
-      // Beim Ersetzen eines Duplikats bleiben dessen übrige Felder
-      // erhalten; alles Import-Relevante wird explizit neu gesetzt.
-      ...(duplicate || {}),
-      id: duplicate?.id || makeId('ci'),
-      projectId: targetProjectId,
-      empId: effectiveEmpId,
-      description: `${t('expense.descPrefix')} ${parsed.header.reportName || ''}`.trim(),
-      dateFrom: dates[0] || null,
-      dateTo: dates.length > 1 ? dates[dates.length - 1] : null,
-      week: dates[0] ? getWeekString(new Date(dates[0])) : null,
-      lines,
-      amount: lines.reduce((s, l) => s + l.amount, 0),
-      expenseReportId: parsed.header.reportId || null,
-      // Gutschrift-Tracking (Prozess 2)
-      reportKey: parsed.header.reportKey || null,
-      targetAccount: targetAccount.trim() || null,
-      settlementStatus: effectiveSettleStatus
+    const makeItem = (rs, {
+      base,
+      projId,
+      status,
+      tgtAccount,
+      descSuffix
+    }) => {
+      const dates = rs.map(r => r.date).sort();
+      const lines = makeLines(rs);
+      return {
+        // Beim Ersetzen eines Duplikats bleiben dessen übrige Felder
+        // erhalten; alles Import-Relevante wird explizit neu gesetzt.
+        ...(base || {}),
+        id: base?.id || makeId('ci'),
+        projectId: projId,
+        empId: effectiveEmpId,
+        description: [`${t('expense.descPrefix')} ${parsed.header.reportName || ''}`.trim(), descSuffix].filter(Boolean).join(' · '),
+        dateFrom: dates[0] || null,
+        dateTo: dates.length > 1 ? dates[dates.length - 1] : null,
+        week: dates[0] ? getWeekString(new Date(dates[0])) : null,
+        lines,
+        amount: lines.reduce((s, l) => s + l.amount, 0),
+        expenseReportId: parsed.header.reportId || null,
+        // Gutschrift-Tracking (Prozess 2)
+        reportKey: parsed.header.reportKey || null,
+        targetAccount: tgtAccount,
+        settlementStatus: status
+      };
     };
-    if (duplicate) {
-      setCostItems(costItems.map(c => c.id === duplicate.id ? item : c));
-    } else {
-      setCostItems([...costItems, item]);
+
+    // Split: Bei Projekt-Zuordnung können einzelne Posten "abgehakt"
+    // werden (toKst) – sie landen dann in einem zweiten, internen
+    // Kostenpunkt und verbleiben auf der Team-KST.
+    const projectRows = targetProjectId ? included.filter(r => !r.toKst) : [];
+    const kstRows = targetProjectId ? included.filter(r => r.toKst) : included;
+    const reportId = parsed.header.reportId || null;
+    // Früheren internen Anteil desselben Reports wiederverwenden (Re-Import)
+    const prevInternal = reportId ? (costItems || []).find(c => c.expenseReportId === reportId && c.projectId == null) || null : null;
+    const newItems = [];
+    if (projectRows.length > 0) {
+      newItems.push(makeItem(projectRows, {
+        base: duplicate && duplicate.projectId === targetProjectId ? duplicate : null,
+        projId: targetProjectId,
+        status: effectiveSettleStatus,
+        tgtAccount: targetAccount.trim() || null
+      }));
     }
+    if (kstRows.length > 0) {
+      const isSplit = !!targetProjectId;
+      newItems.push(makeItem(kstRows, {
+        base: prevInternal,
+        projId: null,
+        status: isSplit ? 'remain_on_kst' : effectiveSettleStatus,
+        tgtAccount: isSplit ? null : targetAccount.trim() || null,
+        descSuffix: isSplit ? t('expense.kstSplitSuffix') : null
+      }));
+    }
+
+    // Frühere Kostenpunkte desselben Reports im verwalteten Scope
+    // (Ziel-Projekt + interner Anteil) ersetzen, dann neu anfügen.
+    setCostItems(prev => {
+      const keep = reportId ? prev.filter(c => !(c.expenseReportId === reportId && (c.projectId === targetProjectId || c.projectId == null))) : prev;
+      return [...keep, ...newItems];
+    });
     showToast?.(t('expense.saved'), {
       type: 'success',
       duration: 4000
@@ -407,7 +453,7 @@ const ExpenseImportModal = ({
     className: "w-4 h-4 text-gea-600"
   }), /*#__PURE__*/React.createElement("span", {
     className: "text-slate-800 font-medium"
-  }, project.name), /*#__PURE__*/React.createElement("span", {
+  }, projLabel(project)), /*#__PURE__*/React.createElement("span", {
     className: "text-xs text-slate-500"
   }, t('expense.plannedInWeeks').replace('{weeks}', weeks.map(w => formatKW(w)).join(', '))))), /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 text-sm cursor-pointer select-none"
@@ -428,10 +474,10 @@ const ExpenseImportModal = ({
     className: "p-1.5 border border-slate-300 rounded-md text-sm bg-white flex-1 min-w-0"
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, t('expense.selectProject')), (projects || []).map(p => /*#__PURE__*/React.createElement("option", {
+  }, t('expense.selectProject')), sortedProjects.map(p => /*#__PURE__*/React.createElement("option", {
     key: p.id,
     value: p.id
-  }, p.name)))), /*#__PURE__*/React.createElement("label", {
+  }, projLabel(p))))), /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 text-sm cursor-pointer select-none"
   }, /*#__PURE__*/React.createElement("input", {
     type: "radio",
@@ -444,7 +490,9 @@ const ExpenseImportModal = ({
   }, t('expense.bookInternal')), /*#__PURE__*/React.createElement("span", {
     className: "text-xs text-slate-400"
   }, t('expense.bookInternalHint'))))), /*#__PURE__*/React.createElement("div", {
-    className: "p-4 rounded-lg border border-slate-200 bg-slate-50 flex items-center gap-3 flex-wrap"
+    className: "p-4 rounded-lg border border-slate-200 bg-slate-50 space-y-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 flex-wrap"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-sm text-slate-700 font-medium"
   }, t('expense.settlement'), ":"), /*#__PURE__*/React.createElement("select", {
@@ -469,7 +517,9 @@ const ExpenseImportModal = ({
     className: "w-32 p-1.5 border border-slate-300 rounded text-sm font-mono"
   }), /*#__PURE__*/React.createElement("span", {
     className: "text-xs text-slate-400"
-  }, t('expense.targetAccountHint'))), effectiveEmpId && missingWeeks.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, t('expense.targetAccountHint'))), targetProjectId && rows.some(r => r.included && r.toKst) && /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-amber-700"
+  }, t('expense.kstSplitInfo').replace('{count}', String(rows.filter(r => r.included && r.toKst).length)))), effectiveEmpId && missingWeeks.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "p-4 rounded-lg border bg-amber-50 border-amber-300 space-y-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-amber-800 font-medium"
@@ -559,7 +609,18 @@ const ExpenseImportModal = ({
       className: "text-slate-400 text-xs ml-2"
     }, [fmtDate(r.date), r.vendor, r.location].filter(Boolean).join(' · '))), /*#__PURE__*/React.createElement("span", {
       className: "text-xs text-slate-400 tabular-nums shrink-0"
-    }, r.amount.toFixed(2), " ", r.currency), /*#__PURE__*/React.createElement("div", {
+    }, r.amount.toFixed(2), " ", r.currency), targetProjectId && /*#__PURE__*/React.createElement("label", {
+      title: t('expense.rowToKstHint'),
+      className: `flex items-center gap-1 text-[10px] shrink-0 select-none ${r.included ? 'cursor-pointer text-slate-500' : 'text-slate-300'}`
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: !!r.toKst,
+      disabled: !r.included,
+      onChange: e => updateRow(r.id, {
+        toKst: e.target.checked
+      }),
+      className: "w-3.5 h-3.5 text-gea-600 rounded"
+    }), t('expense.rowToKst')), /*#__PURE__*/React.createElement("div", {
       className: "flex items-center gap-1 shrink-0"
     }, /*#__PURE__*/React.createElement("input", {
       type: "text",

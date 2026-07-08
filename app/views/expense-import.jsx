@@ -58,6 +58,13 @@ const ExpenseImportModal = ({
         const n = parseFloat(String(v).replace(',', '.'));
         return Number.isFinite(n) && n >= 0 ? n : 0;
     };
+    // Projekt-Anzeige wie in den Planungsdialogen: Anlagentyp, Name, Größe.
+    const projLabel = (p) => [p.projType, p.name, p.size]
+        .filter(v => v !== undefined && v !== null && String(v).trim() !== '')
+        .join(' ');
+    const sortedProjects = useMemo(
+        () => [...(projects || [])].sort((a, b) => projLabel(a).localeCompare(projLabel(b), 'de')),
+        [projects]);
     const activeEmployees = useMemo(
         () => (employees || []).filter(e => e.active !== false),
         [employees]);
@@ -87,6 +94,9 @@ const ExpenseImportModal = ({
         setRows(result.items.map(it => ({
             ...it,
             included: true,
+            // Bei Projekt-Zuordnung abwählbar: Posten mit toKst landen nicht
+            // auf dem Projekt, sondern verbleiben auf der Team-KST.
+            toKst: false,
             eur: Number.isFinite(convertToEur(it.amount, it.currency, fxRates))
                 ? String(convertToEur(it.amount, it.currency, fxRates))
                 : '',
@@ -135,12 +145,14 @@ const ExpenseImportModal = ({
                 weeks: [...weeks].sort(compareWeekIds),
             }))
             .filter(e => e.project)
-            .sort((a, b) => b.weeks.length - a.weeks.length);
+            .sort((a, b) => projLabel(a.project).localeCompare(projLabel(b.project), 'de'));
     }, [fixedProject, effectiveEmpId, rows, assignments, projects]);
 
     // Effektives Buchungsziel aus der Wahl ableiten. 'auto' folgt der
-    // Einsatzplanung (bestgeplantes Projekt), sonst gilt die explizite Wahl.
-    const autoTargetId = plannedProjects[0]?.project.id || null;
+    // Einsatzplanung (Projekt mit den meisten überlappenden Wochen), sonst
+    // gilt die explizite Wahl.
+    const autoTargetId = plannedProjects.reduce(
+        (best, e) => (!best || e.weeks.length > best.weeks.length) ? e : best, null)?.project.id || null;
     const targetProjectId = fixedProject ? fixedProject.id
         : targetChoice === 'auto'     ? autoTargetId
         : targetChoice === 'internal' ? null
@@ -245,8 +257,7 @@ const ExpenseImportModal = ({
             handleSaveAssignment({ empId: effectiveEmpId, week, type: 'project', reference: targetProjectId, hours: 0 });
         });
 
-        const dates = included.map(r => r.date).sort();
-        const lines = included.map(r => {
+        const makeLines = (rs) => rs.map(r => {
             const cat = catById.get(r.category) || catById.get('other');
             // Custom-Kategorien landen in ihrer Export-Kostenart (lineType);
             // ihr Label wandert in den Kommentar, damit die Info erhalten bleibt.
@@ -258,30 +269,71 @@ const ExpenseImportModal = ({
                 comment: [labelPrefix, r.type, r.vendor, r.location, fmtDate(r.date)].filter(Boolean).join(' · '),
             };
         });
-        const item = {
-            // Beim Ersetzen eines Duplikats bleiben dessen übrige Felder
-            // erhalten; alles Import-Relevante wird explizit neu gesetzt.
-            ...(duplicate || {}),
-            id: duplicate?.id || makeId('ci'),
-            projectId: targetProjectId,
-            empId: effectiveEmpId,
-            description: `${t('expense.descPrefix')} ${parsed.header.reportName || ''}`.trim(),
-            dateFrom: dates[0] || null,
-            dateTo: dates.length > 1 ? dates[dates.length - 1] : null,
-            week: dates[0] ? getWeekString(new Date(dates[0])) : null,
-            lines,
-            amount: lines.reduce((s, l) => s + l.amount, 0),
-            expenseReportId: parsed.header.reportId || null,
-            // Gutschrift-Tracking (Prozess 2)
-            reportKey: parsed.header.reportKey || null,
-            targetAccount: targetAccount.trim() || null,
-            settlementStatus: effectiveSettleStatus,
+        const makeItem = (rs, { base, projId, status, tgtAccount, descSuffix }) => {
+            const dates = rs.map(r => r.date).sort();
+            const lines = makeLines(rs);
+            return {
+                // Beim Ersetzen eines Duplikats bleiben dessen übrige Felder
+                // erhalten; alles Import-Relevante wird explizit neu gesetzt.
+                ...(base || {}),
+                id: base?.id || makeId('ci'),
+                projectId: projId,
+                empId: effectiveEmpId,
+                description: [`${t('expense.descPrefix')} ${parsed.header.reportName || ''}`.trim(), descSuffix]
+                    .filter(Boolean).join(' · '),
+                dateFrom: dates[0] || null,
+                dateTo: dates.length > 1 ? dates[dates.length - 1] : null,
+                week: dates[0] ? getWeekString(new Date(dates[0])) : null,
+                lines,
+                amount: lines.reduce((s, l) => s + l.amount, 0),
+                expenseReportId: parsed.header.reportId || null,
+                // Gutschrift-Tracking (Prozess 2)
+                reportKey: parsed.header.reportKey || null,
+                targetAccount: tgtAccount,
+                settlementStatus: status,
+            };
         };
-        if (duplicate) {
-            setCostItems(costItems.map(c => c.id === duplicate.id ? item : c));
-        } else {
-            setCostItems([...costItems, item]);
+
+        // Split: Bei Projekt-Zuordnung können einzelne Posten "abgehakt"
+        // werden (toKst) – sie landen dann in einem zweiten, internen
+        // Kostenpunkt und verbleiben auf der Team-KST.
+        const projectRows = targetProjectId ? included.filter(r => !r.toKst) : [];
+        const kstRows = targetProjectId ? included.filter(r => r.toKst) : included;
+        const reportId = parsed.header.reportId || null;
+        // Früheren internen Anteil desselben Reports wiederverwenden (Re-Import)
+        const prevInternal = reportId
+            ? (costItems || []).find(c => c.expenseReportId === reportId && c.projectId == null) || null
+            : null;
+
+        const newItems = [];
+        if (projectRows.length > 0) {
+            newItems.push(makeItem(projectRows, {
+                base: duplicate && duplicate.projectId === targetProjectId ? duplicate : null,
+                projId: targetProjectId,
+                status: effectiveSettleStatus,
+                tgtAccount: targetAccount.trim() || null,
+            }));
         }
+        if (kstRows.length > 0) {
+            const isSplit = !!targetProjectId;
+            newItems.push(makeItem(kstRows, {
+                base: prevInternal,
+                projId: null,
+                status: isSplit ? 'remain_on_kst' : effectiveSettleStatus,
+                tgtAccount: isSplit ? null : (targetAccount.trim() || null),
+                descSuffix: isSplit ? t('expense.kstSplitSuffix') : null,
+            }));
+        }
+
+        // Frühere Kostenpunkte desselben Reports im verwalteten Scope
+        // (Ziel-Projekt + interner Anteil) ersetzen, dann neu anfügen.
+        setCostItems(prev => {
+            const keep = reportId
+                ? prev.filter(c => !(c.expenseReportId === reportId
+                    && (c.projectId === targetProjectId || c.projectId == null)))
+                : prev;
+            return [...keep, ...newItems];
+        });
         showToast?.(t('expense.saved'), { type: 'success', duration: 4000 });
         onClose();
     };
@@ -391,7 +443,7 @@ const ExpenseImportModal = ({
                                                 checked={targetChoice === project.id || (targetChoice === 'auto' && autoTargetId === project.id)}
                                                 onChange={() => setTargetChoice(project.id)}
                                                 className="w-4 h-4 text-gea-600"/>
-                                            <span className="text-slate-800 font-medium">{project.name}</span>
+                                            <span className="text-slate-800 font-medium">{projLabel(project)}</span>
                                             <span className="text-xs text-slate-500">
                                                 {t('expense.plannedInWeeks').replace('{weeks}', weeks.map(w => formatKW(w)).join(', '))}
                                             </span>
@@ -408,7 +460,7 @@ const ExpenseImportModal = ({
                                             onChange={e => { setTargetChoice('other'); setOtherProjectId(e.target.value); }}
                                             className="p-1.5 border border-slate-300 rounded-md text-sm bg-white flex-1 min-w-0">
                                             <option value="">{t('expense.selectProject')}</option>
-                                            {(projects || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                            {sortedProjects.map(p => <option key={p.id} value={p.id}>{projLabel(p)}</option>)}
                                         </select>
                                     </label>
                                     <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
@@ -424,21 +476,29 @@ const ExpenseImportModal = ({
                         )}
 
                         {/* Verrechnung: Gutschrift-Status + Gegenkonto (Prozess 2) */}
-                        <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 flex items-center gap-3 flex-wrap">
-                            <span className="text-sm text-slate-700 font-medium">{t('expense.settlement')}:</span>
-                            <select value={effectiveSettleStatus}
-                                onChange={e => setSettleStatusSel(e.target.value)}
-                                className="p-1.5 border border-slate-300 rounded-md text-sm bg-white">
-                                <option value="to_submit">{t('travel.status.to_submit')}</option>
-                                <option value="remain_on_kst">{t('travel.status.remain_on_kst')}</option>
-                            </select>
-                            <span className="text-sm text-slate-500 ml-2">{t('expense.targetAccount')}:</span>
-                            <input type="text" value={targetAccount}
-                                onChange={e => { setTargetAccountTouched(true); setTargetAccount(e.target.value); }}
-                                placeholder={t('expense.targetAccountPlaceholder')}
-                                title={t('expense.targetAccountHint')}
-                                className="w-32 p-1.5 border border-slate-300 rounded text-sm font-mono"/>
-                            <span className="text-xs text-slate-400">{t('expense.targetAccountHint')}</span>
+                        <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 space-y-2">
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-sm text-slate-700 font-medium">{t('expense.settlement')}:</span>
+                                <select value={effectiveSettleStatus}
+                                    onChange={e => setSettleStatusSel(e.target.value)}
+                                    className="p-1.5 border border-slate-300 rounded-md text-sm bg-white">
+                                    <option value="to_submit">{t('travel.status.to_submit')}</option>
+                                    <option value="remain_on_kst">{t('travel.status.remain_on_kst')}</option>
+                                </select>
+                                <span className="text-sm text-slate-500 ml-2">{t('expense.targetAccount')}:</span>
+                                <input type="text" value={targetAccount}
+                                    onChange={e => { setTargetAccountTouched(true); setTargetAccount(e.target.value); }}
+                                    placeholder={t('expense.targetAccountPlaceholder')}
+                                    title={t('expense.targetAccountHint')}
+                                    className="w-32 p-1.5 border border-slate-300 rounded text-sm font-mono"/>
+                                <span className="text-xs text-slate-400">{t('expense.targetAccountHint')}</span>
+                            </div>
+                            {targetProjectId && rows.some(r => r.included && r.toKst) && (
+                                <p className="text-xs text-amber-700">
+                                    {t('expense.kstSplitInfo').replace('{count}',
+                                        String(rows.filter(r => r.included && r.toKst).length))}
+                                </p>
+                            )}
                         </div>
 
                         {/* Planungs-Check */}
@@ -516,6 +576,15 @@ const ExpenseImportModal = ({
                                                     </span>
                                                 </div>
                                                 <span className="text-xs text-slate-400 tabular-nums shrink-0">{r.amount.toFixed(2)} {r.currency}</span>
+                                                {targetProjectId && (
+                                                    <label title={t('expense.rowToKstHint')}
+                                                        className={`flex items-center gap-1 text-[10px] shrink-0 select-none ${r.included ? 'cursor-pointer text-slate-500' : 'text-slate-300'}`}>
+                                                        <input type="checkbox" checked={!!r.toKst} disabled={!r.included}
+                                                            onChange={e => updateRow(r.id, { toKst: e.target.checked })}
+                                                            className="w-3.5 h-3.5 text-gea-600 rounded"/>
+                                                        {t('expense.rowToKst')}
+                                                    </label>
+                                                )}
                                                 <div className="flex items-center gap-1 shrink-0">
                                                     <input type="text" inputMode="decimal" value={r.eur}
                                                         onChange={e => updateRow(r.id, { eur: e.target.value })}

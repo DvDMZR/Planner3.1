@@ -86,26 +86,21 @@ const findDuplicateExpenseReport = (costItems, reportId, projectId) => {
     };
 };
 
-// Komprimierte Gesamtübersicht für die Buchhaltungs-E-Mail. Eine Zeile pro
-// Posten mit den Pflichtdaten: Mitarbeiter, Abrechnungsschlüssel, Betrag,
-// Team-KST (Gutschrift) und Ziel-Stelle/Gegenkonto (Umbuchung; Fallback auf
-// die Projekt-KST). Bewusst ASCII-sicher formuliert (wie die bestehende
+// Komprimierte Gesamtübersicht für die Buchhaltungs-E-Mail in Tabellenform:
+// eine Zeile pro Posten mit den Pflichtdaten Mitarbeiter, Abrechnungs-
+// schlüssel, Betrag, Team-KST (Gutschrift) und Ziel-Stelle/Gegenkonto
+// (Umbuchung; Fallback auf die Projekt-KST). Spalten werden auf gleiche
+// Breite aufgefüllt, damit die Übersicht in Monospace-Darstellung als
+// Tabelle lesbar ist. Bewusst ASCII-sicher formuliert (wie die bestehende
 // Rechnungs-E-Mail), da mailto-Clients Umlaute unterschiedlich behandeln.
 const buildAccountingEmail = (items, employees, projects, teamKst) => {
     const empById = new Map((employees || []).map(e => [e.id, e]));
     const projById = new Map((projects || []).map(p => [p.id, p]));
     const fmt2 = (n) => n.toFixed(2);
-    const sep = '─'.repeat(30);
-
-    const lines = [];
-    lines.push('Guten Tag,');
-    lines.push('');
-    lines.push('bitte um Gutschrift der folgenden Reisekosten auf die jeweilige Team-Kostenstelle:');
-    lines.push('');
-    lines.push(sep);
 
     let total = 0;
-    (items || []).forEach(ci => {
+    const header = ['Mitarbeiter', 'Abrechnungsschluessel', 'Betrag (EUR)', 'Gutschrift auf KST', 'Umbuchung auf'];
+    const tableRows = (items || []).map(ci => {
         const emp = empById.get(ci.empId);
         const team = emp?.category || 'Other';
         const kst = (teamKst || {})[team] || '-';
@@ -113,17 +108,25 @@ const buildAccountingEmail = (items, employees, projects, teamKst) => {
         const target = ci.targetAccount || proj?.kst || '-';
         const amount = settlementAmount(ci);
         total += amount;
-        lines.push([
-            emp?.name || 'Unbekannt',
-            `Abrechnungsschluessel: ${ci.reportKey || '-'}`,
-            `Betrag: ${fmt2(amount)} EUR`,
-            `Gutschrift auf KST: ${kst}`,
-            `Umbuchung auf: ${target}`,
-        ].join(' | '));
+        return [emp?.name || 'Unbekannt', ci.reportKey || '-', fmt2(amount), kst, target];
     });
-
     total = Math.round(total * 100) / 100;
-    lines.push(sep);
+
+    // Spaltenbreiten über Kopf + Datenzeilen ermitteln und auffüllen.
+    const widths = header.map((h, i) =>
+        Math.max(h.length, ...tableRows.map(r => r[i].length), 0));
+    const renderRow = (cols) => cols.map((c, i) => c.padEnd(widths[i])).join(' | ').trimEnd();
+    const sepRow = widths.map(w => '-'.repeat(w)).join('-|-');
+
+    const lines = [];
+    lines.push('Guten Tag,');
+    lines.push('');
+    lines.push('bitte um Gutschrift der folgenden Reisekosten auf die jeweilige Team-Kostenstelle:');
+    lines.push('');
+    lines.push(renderRow(header));
+    lines.push(sepRow);
+    tableRows.forEach(r => lines.push(renderRow(r)));
+    lines.push(sepRow);
     lines.push(`GESAMTSUMME: ${fmt2(total)} EUR`);
     lines.push('');
     lines.push('Mit freundlichen Gruessen');
