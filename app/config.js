@@ -1,5 +1,5 @@
 // ─── TEAM-SPLIT FILE LAYOUT ───────────────────────────────────────────────────
-const APP_VERSION = 'v0.911';
+const APP_VERSION = 'v0.92';
 const DEFAULT_TEAMS = ['AS', 'CMS', 'CSS', 'HM', 'I&C', 'Other'];
 const PLANNER_DATA_DIR = 'planner-data';
 const SCHEMA_VERSION = 4;
@@ -77,6 +77,48 @@ const ensureAdmin = async (users) => {
 
 // --- CHANGELOG ---
 const CHANGELOG_CONTENT = `# Changelog
+
+## v0.92 (2026-07-09)
+
+### Neues Feature: Reisekosten-Gutschriften an die Buchhaltung
+- Neuer Verwaltungs-Reiter **Reisekosten**: zeigt je Team-Kostenstelle (KST) das
+  Gesamtminus, angeforderte Gutschriften und das bereinigte Budget. Filter nach
+  Team, Status, Mitarbeiter und Jahr; Team-Karten einklappbar, Spalten sortierbar,
+  Einzelposten je Reise aufklappbar (mit Bearbeiten-Zugriff).
+- Neue Status je Kostenpunkt: **Zu übermitteln**, **Auf KST verbleiben**,
+  **Auf andere KST gebucht** (zählt nicht ins Minus) und **An Buchhaltung
+  übermittelt**. Einzelposten lassen sich auch nachträglich zwischen Projekt-
+  und KST-Buchung verschieben.
+- Übermittlung an die Buchhaltung per Auswahl-Dialog (Team-Filter + Checkbox je
+  Reise); die E-Mail-Übersicht ist als Tabelle aufbereitet, "Tabelle kopieren"
+  legt eine formatierte HTML-Tabelle in die Zwischenablage (z. B. für Outlook).
+  Nach dem Versand fragt ein Dialog, ob die Posten als übermittelt markiert
+  werden sollen.
+- Spesen-Import jetzt auch **ohne festes Projekt** möglich (Einstieg aus der
+  Reisekostenübersicht): schlägt anhand der Einsatzplanung passende Projekte
+  vor, warnt bei fehlender Planung und kann als interne KST-Kosten gebucht
+  werden. Einzelne Posten lassen sich beim Import auf die KST "abhaken", statt
+  sie dem Projekt zuzuordnen. Die Projektauswahl im Import ist jetzt durchsuchbar
+  (Typ/Name/Größe/Land) und zeigt standardmäßig nur relevante Projekte.
+- Neuer Mitarbeiter-Haken **"Bucht auf Invoice"**: Reisekosten dieser
+  Mitarbeiter laufen als eigener Minusposten "Invoices" und werden nicht an die
+  Buchhaltung übermittelt.
+- KST-Nummer je Team (Verwaltung → Kategorien) und je Projekt, eigener
+  Buchhaltungs-Empfänger (Verwaltung → System & Export) – getrennt vom
+  bestehenden Rechnungsempfänger.
+
+### Bugfix: Datenverlust bei Team-Synchronisation
+- Der selektive Sync-Merge konnte beim Zusammenführen entfernter Änderungen
+  fälschlich alle Kostenpunkte eines Teams lokal leeren, wenn nur dessen
+  Planungsdatei aktualisiert wurde – der nächste Speichervorgang schrieb den
+  leeren Stand dann zurück. Behoben durch präziseres Zusammenführen, Schutz vor
+  Fehlinterpretation gescheiterter Ladevorgänge als "leer" sowie einen
+  Schreibschutz gegen das Leeren zuvor gefüllter Team-Dateien.
+
+### UI-Fix: doppelter Tooltip in der Projekt-Zeitachse
+- Der Projektname zeigte bei Hover gleichzeitig den nativen Browser-Tooltip
+  und den gestylten Notiz-Tooltip. Jetzt erscheint bei vorhandener Notiz nur
+  noch der gestylte Tooltip.
 
 ## v0.911 (2026-07-06)
 
