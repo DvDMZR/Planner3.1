@@ -265,20 +265,24 @@ const SetupEmpView = ({
       className: "text-lg text-slate-900 font-medium"
     }, category), /*#__PURE__*/React.createElement("span", {
       className: "ml-2 px-2 py-0.5 bg-white border border-slate-200 rounded-full text-xs text-slate-500 font-medium"
-    }, catEmps.length)), !isCollapsed && (catEmps.length > 0 ? /*#__PURE__*/React.createElement("table", {
-      className: "w-full text-left text-sm"
+    }, catEmps.length)), !isCollapsed && (catEmps.length > 0 ?
+    /*#__PURE__*/
+    // table-fixed + feste Spaltenbreiten (Muster wie setup-proj.jsx/
+    // resource.jsx): verhindert, dass ein langer Name die Aktions-Spalte
+    // aus dem sichtbaren Bereich der Karte drängt. Lange Werte werden
+    // per truncate abgeschnitten, der volle Text steht im title-Tooltip.
+    // E-Mail/Std.-Woche stehen nur noch im Bearbeiten-Dialog, nicht in
+    // der Übersicht (weniger Spalten = weniger Kollisionsrisiko).
+    React.createElement("table", {
+      className: "w-full text-left text-sm table-fixed"
     }, /*#__PURE__*/React.createElement("thead", {
       className: "bg-slate-50/50"
     }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
       className: "p-4 text-slate-500 font-medium"
     }, t('emp.colName')), /*#__PURE__*/React.createElement("th", {
-      className: "p-4 text-slate-500 font-medium"
-    }, t('emp.colEmail')), /*#__PURE__*/React.createElement("th", {
-      className: "p-4 text-slate-500 font-medium text-center"
-    }, t('emp.colHours')), /*#__PURE__*/React.createElement("th", {
-      className: "p-4 text-slate-500 font-medium"
+      className: "p-4 text-slate-500 font-medium w-28"
     }, t('emp.colStatus')), /*#__PURE__*/React.createElement("th", {
-      className: "p-4"
+      className: "p-4 w-40"
     }))), /*#__PURE__*/React.createElement("tbody", {
       className: "divide-y divide-slate-300"
     }, catEmps.map(e => /*#__PURE__*/React.createElement("tr", {
@@ -286,25 +290,20 @@ const SetupEmpView = ({
       className: "hover:bg-slate-50 transition-colors"
     }, /*#__PURE__*/React.createElement("td", {
       className: "p-4 text-slate-900 font-medium"
-    }, e.name, e.role && /*#__PURE__*/React.createElement("div", {
-      className: "text-xs text-slate-400 font-normal mt-0.5"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "truncate",
+      title: e.name
+    }, e.name), e.role && /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-slate-400 font-normal mt-0.5 truncate",
+      title: e.role
     }, e.role)), /*#__PURE__*/React.createElement("td", {
-      className: "p-4 text-slate-600 text-sm"
-    }, e.email ? /*#__PURE__*/React.createElement("a", {
-      href: `mailto:${encodeURIComponent(e.email)}`,
-      className: "text-gea-600 hover:text-gea-700"
-    }, e.email) : /*#__PURE__*/React.createElement("span", {
-      className: "text-slate-300"
-    }, "\u2014")), /*#__PURE__*/React.createElement("td", {
-      className: "p-4 text-center"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-medium text-slate-700"
-    }, e.weeklyHours ?? HOURS_PER_WEEK, "h")), /*#__PURE__*/React.createElement("td", {
       className: "p-4"
     }, /*#__PURE__*/React.createElement("span", {
       className: `px-2 py-1 rounded text-xs font-medium ${e.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`
     }, e.active ? t('emp.active') : t('emp.inactive'))), /*#__PURE__*/React.createElement("td", {
-      className: "p-4 text-right flex justify-end gap-3"
+      className: "p-4 text-right"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-end gap-3 whitespace-nowrap"
     }, /*#__PURE__*/React.createElement("button", {
       onClick: () => handleEditEmp(e),
       className: "text-gea-600 text-xs font-medium hover:text-gea-700"
@@ -314,7 +313,7 @@ const SetupEmpView = ({
         active: !x.active
       } : x)),
       className: "text-gea-600 text-xs font-medium hover:text-gea-700"
-    }, t('emp.toggleStatus'))))))) : /*#__PURE__*/React.createElement("div", {
+    }, t('emp.toggleStatus')))))))) : /*#__PURE__*/React.createElement("div", {
       className: "p-4 text-sm text-slate-400 text-center bg-white"
     }, t('emp.noInCategory'))));
   }))), isEmpFormOpen && /*#__PURE__*/React.createElement("div", {

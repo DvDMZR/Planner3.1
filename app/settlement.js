@@ -40,13 +40,22 @@ const settlementAmount = (ci) =>
 // Team-Split der Datendateien (groupByTeam) – über das Team des Mitarbeiters
 // zugeordnet; unbekannte Mitarbeiter fallen auf 'Other'. Kostenpunkte ohne
 // Reisekosten-Anteil (nur Stunden-Zeilen) werden übersprungen.
+//
+// Mitarbeiter mit booksOnInvoice buchen ihre Reisekosten über einen anderen
+// Kanal (Kunden-Invoice statt KST-Gutschrift) – sie belasten die Team-KST
+// daher NICHT (raus aus raw/adjusted). Das heißt aber nicht, dass diese
+// Posten eingefroren sind: sie durchlaufen denselben Status-Workflow
+// (to_submit/remain_on_kst/booked_other_kst/submitted) wie normale
+// Kostenpunkte und werden separat unter invoices* bilanziert.
+//
 // Liefert (nach Teamname sortiert):
-//   [{ team, kst, raw, toSubmit, remain, otherKst, invoices, submitted, adjusted, items }]
-//   raw      = Gesamtminus der KST (Summe der Reisekosten, die die Team-KST belasten)
-//   otherKst = auf fremde KST gebuchte Reisen – belasten die Team-KST NICHT
-//   invoices = eigener Minusposten für Mitarbeiter mit booksOnInvoice –
-//              läuft am KST-Prozess vorbei (keine Übermittlung, kein raw)
-//   adjusted = bereinigtes Minus nach angeforderten Gutschriften (raw − submitted)
+//   [{ team, kst, raw, toSubmit, remain, otherKst, submitted, adjusted,
+//      invoicesRaw, invoicesToSubmit, invoicesSubmitted, invoicesAdjusted, items }]
+//   raw              = Gesamtminus der KST (Reisekosten, die die Team-KST belasten)
+//   otherKst         = auf fremde KST gebuchte Reisen – belasten die Team-KST NICHT
+//   adjusted         = bereinigtes Minus nach angeforderten Gutschriften (raw − submitted)
+//   invoicesRaw      = Gesamtsumme der Invoice-Kosten (eigener Kanal, nicht in raw)
+//   invoicesAdjusted = offener Invoice-Betrag (invoicesRaw − invoicesSubmitted)
 const aggregateSettlement = (costItems, employees, teamKst) => {
     const empById = new Map((employees || []).map(e => [e.id, e]));
     const groups = new Map();
@@ -58,13 +67,19 @@ const aggregateSettlement = (costItems, employees, teamKst) => {
         let g = groups.get(team);
         if (!g) {
             g = { team, kst: (teamKst || {})[team] || '', raw: 0,
-                  toSubmit: 0, remain: 0, otherKst: 0, invoices: 0,
-                  submitted: 0, adjusted: 0, items: [] };
+                  toSubmit: 0, remain: 0, otherKst: 0, submitted: 0, adjusted: 0,
+                  invoicesRaw: 0, invoicesToSubmit: 0, invoicesSubmitted: 0, invoicesAdjusted: 0,
+                  items: [] };
             groups.set(team, g);
         }
         g.items.push(ci);
-        if (emp?.booksOnInvoice) { g.invoices += amount; return; }
         const status = getSettlementStatus(ci);
+        if (emp?.booksOnInvoice) {
+            g.invoicesRaw += amount;
+            if (status === 'to_submit') g.invoicesToSubmit += amount;
+            else if (status === 'submitted') g.invoicesSubmitted += amount;
+            return;
+        }
         if (status === 'booked_other_kst') { g.otherKst += amount; return; }
         g.raw += amount;
         if (status === 'to_submit') g.toSubmit += amount;
@@ -75,8 +90,11 @@ const aggregateSettlement = (costItems, employees, teamKst) => {
     return [...groups.values()]
         .map(g => ({ ...g,
             raw: round2(g.raw), toSubmit: round2(g.toSubmit), remain: round2(g.remain),
-            otherKst: round2(g.otherKst), invoices: round2(g.invoices),
-            submitted: round2(g.submitted), adjusted: round2(g.raw - g.submitted) }))
+            otherKst: round2(g.otherKst),
+            submitted: round2(g.submitted), adjusted: round2(g.raw - g.submitted),
+            invoicesRaw: round2(g.invoicesRaw), invoicesToSubmit: round2(g.invoicesToSubmit),
+            invoicesSubmitted: round2(g.invoicesSubmitted),
+            invoicesAdjusted: round2(g.invoicesRaw - g.invoicesSubmitted) }))
         .sort((a, b) => a.team.localeCompare(b.team));
 };
 

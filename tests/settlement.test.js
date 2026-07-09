@@ -251,20 +251,25 @@ test('aggregateSettlement: booked_other_kst zählt nicht ins Minus', () => {
     assert.equal(as.items.length, 2); // sichtbar bleibt der Posten trotzdem
 });
 
-test('aggregateSettlement: booksOnInvoice-Mitarbeiter → eigener Invoices-Posten', () => {
+test('aggregateSettlement: booksOnInvoice-Mitarbeiter läuft getrennt, behält aber vollen Status-Workflow', () => {
     const emps = [...employees, { id: 'emp-inv', name: 'Ida Invoice', category: 'AS', booksOnInvoice: true }];
     const items = [
-        ci({ id: 'c1', empId: 'emp-1' }),                       // normal, 100
-        ci({ id: 'c2', empId: 'emp-inv' }),                     // Invoice, 100
-        ci({ id: 'c3', empId: 'emp-inv', settlementStatus: 'submitted' }), // Invoice schlägt Status
+        ci({ id: 'c1', empId: 'emp-1' }),                                   // normal, to_submit, 100
+        ci({ id: 'c2', empId: 'emp-inv' }),                                 // Invoice, to_submit, 100
+        ci({ id: 'c3', empId: 'emp-inv', settlementStatus: 'submitted' }),  // Invoice, bereits übermittelt, 100
     ];
     const agg = aggregateSettlement(items, emps, teamKst);
     const as = agg.find(g => g.team === 'AS');
+    // Invoice-Posten belasten die Team-KST NICHT (raus aus raw/adjusted)
     assert.equal(as.raw, 100);
-    assert.equal(as.invoices, 200);
     assert.equal(as.toSubmit, 100);
     assert.equal(as.submitted, 0);
     assert.equal(as.adjusted, 100);
+    // ... werden aber separat mit vollem Status bilanziert
+    assert.equal(as.invoicesRaw, 200);
+    assert.equal(as.invoicesToSubmit, 100);
+    assert.equal(as.invoicesSubmitted, 100);
+    assert.equal(as.invoicesAdjusted, 100); // 200 − 100 bereits übermittelt
     assert.equal(as.items.length, 3);
 });
 
