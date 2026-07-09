@@ -1,3 +1,4 @@
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 // TIMELINE_WEEK_W and TIMELINE_STICKY_W live in config.js
 const TimelineView = ({
   s,
@@ -457,14 +458,15 @@ const TimelineView = ({
         text: proj.notes || '',
         wrap: true,
         side: "bottom"
-      }, /*#__PURE__*/React.createElement("button", {
+      }, /*#__PURE__*/React.createElement("button", _extends({
         onClick: () => {
           setSelectedProjectDetails(proj.id);
           setActiveTab('setup_proj');
         },
-        className: "text-slate-900 font-medium text-left truncate hover:text-gea-700 hover:underline transition-colors",
-        title: "Projekt-Einstellungen \xF6ffnen"
-      }, projLabel))), proj.sharepointLink && /*#__PURE__*/React.createElement("div", {
+        className: "text-slate-900 font-medium text-left truncate hover:text-gea-700 hover:underline transition-colors"
+      }, !proj.notes && {
+        title: 'Projekt-Einstellungen öffnen'
+      }), projLabel))), proj.sharepointLink && /*#__PURE__*/React.createElement("div", {
         className: "flex items-center gap-1 mt-1"
       }, /*#__PURE__*/React.createElement("a", {
         href: proj.sharepointLink,
