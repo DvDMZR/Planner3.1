@@ -40,7 +40,7 @@ const SetupEmpView = ({ s, h }) => {
     const closeEmpForm = React.useCallback(() => setIsEmpFormOpen(false), [setIsEmpFormOpen]);
     useEscapeToClose(isEmpFormOpen ? closeEmpForm : null);
 
-        const emptyForm = { name: '', category: empCategories[0] || '', weeklyHours: HOURS_PER_WEEK, email: '', role: '', notes: '' };
+        const emptyForm = { name: '', category: empCategories[0] || '', weeklyHours: HOURS_PER_WEEK, email: '', role: '', notes: '', booksOnInvoice: false };
         const isValidEmail = (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
         const openCreateForm = () => {
@@ -60,6 +60,7 @@ const SetupEmpView = ({ s, h }) => {
                 email: (empForm.email || '').trim() || null,
                 role: (empForm.role || '').trim() || null,
                 notes: (empForm.notes || '').trim() || null,
+                booksOnInvoice: !!empForm.booksOnInvoice,
             };
             if (editingEmpId) {
                 setEmployees(employees.map(e => e.id === editingEmpId ? { ...e, ...payload } : e));
@@ -79,6 +80,7 @@ const SetupEmpView = ({ s, h }) => {
                 email: e.email || '',
                 role: e.role || '',
                 notes: e.notes || '',
+                booksOnInvoice: !!e.booksOnInvoice,
             });
             setEditingEmpId(e.id);
             setIsEmpFormOpen(true);
@@ -248,6 +250,17 @@ const SetupEmpView = ({ s, h }) => {
                                         <textarea rows="2" value={empForm.notes} onChange={e=>setEmpForm({...empForm, notes: e.target.value})}
                                             placeholder={t('emp.placeholderNotes')}
                                             className="w-full p-2 border border-slate-300 rounded text-sm resize-none"/>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="flex items-start gap-2 cursor-pointer select-none">
+                                            <input type="checkbox" checked={!!empForm.booksOnInvoice}
+                                                onChange={e=>setEmpForm({...empForm, booksOnInvoice: e.target.checked})}
+                                                className="w-4 h-4 text-gea-600 rounded mt-0.5"/>
+                                            <span>
+                                                <span className="block text-sm text-slate-700 font-medium">{t('emp.booksOnInvoice')}</span>
+                                                <span className="block text-xs text-slate-400">{t('emp.booksOnInvoiceHint')}</span>
+                                            </span>
+                                        </label>
                                     </div>
                                 </div>
                             </div>

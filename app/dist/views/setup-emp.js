@@ -145,7 +145,8 @@ const SetupEmpView = ({
     weeklyHours: HOURS_PER_WEEK,
     email: '',
     role: '',
-    notes: ''
+    notes: '',
+    booksOnInvoice: false
   };
   const isValidEmail = v => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
   const openCreateForm = () => {
@@ -163,7 +164,8 @@ const SetupEmpView = ({
       weeklyHours: wh,
       email: (empForm.email || '').trim() || null,
       role: (empForm.role || '').trim() || null,
-      notes: (empForm.notes || '').trim() || null
+      notes: (empForm.notes || '').trim() || null,
+      booksOnInvoice: !!empForm.booksOnInvoice
     };
     if (editingEmpId) {
       setEmployees(employees.map(e => e.id === editingEmpId ? {
@@ -188,7 +190,8 @@ const SetupEmpView = ({
       weeklyHours: e.weeklyHours ?? HOURS_PER_WEEK,
       email: e.email || '',
       role: e.role || '',
-      notes: e.notes || ''
+      notes: e.notes || '',
+      booksOnInvoice: !!e.booksOnInvoice
     });
     setEditingEmpId(e.id);
     setIsEmpFormOpen(true);
@@ -415,7 +418,23 @@ const SetupEmpView = ({
     }),
     placeholder: t('emp.placeholderNotes'),
     className: "w-full p-2 border border-slate-300 rounded text-sm resize-none"
-  })))), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-2"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "flex items-start gap-2 cursor-pointer select-none"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!empForm.booksOnInvoice,
+    onChange: e => setEmpForm({
+      ...empForm,
+      booksOnInvoice: e.target.checked
+    }),
+    className: "w-4 h-4 text-gea-600 rounded mt-0.5"
+  }), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "block text-sm text-slate-700 font-medium"
+  }, t('emp.booksOnInvoice')), /*#__PURE__*/React.createElement("span", {
+    className: "block text-xs text-slate-400"
+  }, t('emp.booksOnInvoiceHint'))))))), /*#__PURE__*/React.createElement("div", {
     className: "p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: closeForm,

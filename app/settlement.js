@@ -8,12 +8,15 @@
 
 // Status eines Kostenpunkts im Gutschrift-Prozess. Labels laufen über i18n
 // (travel.status.<key>); hier liegen nur Schlüssel, Reihenfolge und Chips.
+// 'booked_other_kst' = Reise wurde von Anfang an auf eine fremde KST gebucht –
+// sie belastet die Team-KST nicht und zählt nicht ins Gesamtminus.
 const SETTLEMENT_STATUSES = {
-    to_submit:     { chip: 'bg-amber-100 text-amber-700 border-amber-200',       dot: 'bg-amber-500' },
-    remain_on_kst: { chip: 'bg-slate-100 text-slate-600 border-slate-200',       dot: 'bg-slate-400' },
-    submitted:     { chip: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+    to_submit:        { chip: 'bg-amber-100 text-amber-700 border-amber-200',       dot: 'bg-amber-500' },
+    remain_on_kst:    { chip: 'bg-slate-100 text-slate-600 border-slate-200',       dot: 'bg-slate-400' },
+    booked_other_kst: { chip: 'bg-sky-100 text-sky-700 border-sky-200',             dot: 'bg-sky-500' },
+    submitted:        { chip: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
 };
-const SETTLEMENT_STATUS_ORDER = ['to_submit', 'remain_on_kst', 'submitted'];
+const SETTLEMENT_STATUS_ORDER = ['to_submit', 'remain_on_kst', 'booked_other_kst', 'submitted'];
 
 // Lazy Defaulting: Bestandsdaten tragen kein settlementStatus-Feld. Der
 // Default wird beim Lesen abgeleitet und erst beim ersten Anfassen
@@ -38,33 +41,41 @@ const settlementAmount = (ci) =>
 // zugeordnet; unbekannte Mitarbeiter fallen auf 'Other'. Kostenpunkte ohne
 // Reisekosten-Anteil (nur Stunden-Zeilen) werden übersprungen.
 // Liefert (nach Teamname sortiert):
-//   [{ team, kst, raw, toSubmit, remain, submitted, adjusted, items }]
-//   raw      = Gesamtminus der KST (Summe aller Reisekosten)
+//   [{ team, kst, raw, toSubmit, remain, otherKst, invoices, submitted, adjusted, items }]
+//   raw      = Gesamtminus der KST (Summe der Reisekosten, die die Team-KST belasten)
+//   otherKst = auf fremde KST gebuchte Reisen – belasten die Team-KST NICHT
+//   invoices = eigener Minusposten für Mitarbeiter mit booksOnInvoice –
+//              läuft am KST-Prozess vorbei (keine Übermittlung, kein raw)
 //   adjusted = bereinigtes Minus nach angeforderten Gutschriften (raw − submitted)
 const aggregateSettlement = (costItems, employees, teamKst) => {
-    const empTeam = new Map((employees || []).map(e => [e.id, e.category || 'Other']));
+    const empById = new Map((employees || []).map(e => [e.id, e]));
     const groups = new Map();
     (costItems || []).forEach(ci => {
         const amount = settlementAmount(ci);
         if (amount <= 0) return;
-        const team = empTeam.get(ci.empId) || 'Other';
+        const emp = empById.get(ci.empId);
+        const team = emp?.category || 'Other';
         let g = groups.get(team);
         if (!g) {
             g = { team, kst: (teamKst || {})[team] || '', raw: 0,
-                  toSubmit: 0, remain: 0, submitted: 0, adjusted: 0, items: [] };
+                  toSubmit: 0, remain: 0, otherKst: 0, invoices: 0,
+                  submitted: 0, adjusted: 0, items: [] };
             groups.set(team, g);
         }
-        g.raw += amount;
+        g.items.push(ci);
+        if (emp?.booksOnInvoice) { g.invoices += amount; return; }
         const status = getSettlementStatus(ci);
+        if (status === 'booked_other_kst') { g.otherKst += amount; return; }
+        g.raw += amount;
         if (status === 'to_submit') g.toSubmit += amount;
         else if (status === 'submitted') g.submitted += amount;
         else g.remain += amount;
-        g.items.push(ci);
     });
     const round2 = (n) => Math.round(n * 100) / 100;
     return [...groups.values()]
         .map(g => ({ ...g,
             raw: round2(g.raw), toSubmit: round2(g.toSubmit), remain: round2(g.remain),
+            otherKst: round2(g.otherKst), invoices: round2(g.invoices),
             submitted: round2(g.submitted), adjusted: round2(g.raw - g.submitted) }))
         .sort((a, b) => a.team.localeCompare(b.team));
 };
@@ -207,5 +218,60 @@ const buildAccountingEmail = (items, employees, projects, teamKst) => {
         total,
         count: (items || []).length,
     };
+};
+
+// Dieselbe Übersicht als echte HTML-Tabelle für die Zwischenablage
+// (text/html). In Outlook/Word eingefügt erscheint sie als formatierte
+// Tabelle. Inline-Styles statt CSS-Klassen, weil Mail-Clients externe
+// Styles beim Einfügen verwerfen. Alle Feldwerte werden HTML-escaped.
+const escapeHtml = (v) => String(v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+const buildAccountingEmailHtml = (items, employees, projects, teamKst) => {
+    const empById = new Map((employees || []).map(e => [e.id, e]));
+    const projById = new Map((projects || []).map(p => [p.id, p]));
+    const fmt2 = (n) => n.toFixed(2);
+    const td = 'border:1px solid #94a3b8;padding:4px 10px;font-size:13px;';
+    const tdNum = td + 'text-align:right;font-variant-numeric:tabular-nums;';
+    const th = td + 'background:#e2e8f0;font-weight:600;text-align:left;';
+
+    let total = 0;
+    const rowsHtml = (items || []).map(ci => {
+        const emp = empById.get(ci.empId);
+        const team = emp?.category || 'Other';
+        const kst = (teamKst || {})[team] || '-';
+        const proj = ci.projectId ? projById.get(ci.projectId) : null;
+        const target = ci.targetAccount || proj?.kst || '-';
+        const amount = settlementAmount(ci);
+        total += amount;
+        return `<tr><td style="${td}">${escapeHtml(emp?.name || 'Unbekannt')}</td>`
+            + `<td style="${td}">${escapeHtml(ci.reportKey || '-')}</td>`
+            + `<td style="${tdNum}">${fmt2(amount)}</td>`
+            + `<td style="${td}">${escapeHtml(kst)}</td>`
+            + `<td style="${td}">${escapeHtml(target)}</td></tr>`;
+    }).join('');
+    total = Math.round(total * 100) / 100;
+
+    const html =
+        '<p>Guten Tag,</p>'
+        + '<p>bitte um Gutschrift der folgenden Reisekosten auf die jeweilige Team-Kostenstelle:</p>'
+        + '<table style="border-collapse:collapse;border:1px solid #94a3b8;">'
+        + '<thead><tr>'
+        + `<th style="${th}">Mitarbeiter</th>`
+        + `<th style="${th}">Abrechnungsschl&uuml;ssel</th>`
+        + `<th style="${th}">Betrag (EUR)</th>`
+        + `<th style="${th}">Gutschrift auf KST</th>`
+        + `<th style="${th}">Umbuchung auf</th>`
+        + '</tr></thead>'
+        + `<tbody>${rowsHtml}</tbody>`
+        + '<tfoot><tr>'
+        + `<td style="${th}" colspan="2">GESAMTSUMME</td>`
+        + `<td style="${th}text-align:right;">${fmt2(total)}</td>`
+        + `<td style="${th}" colspan="2"></td>`
+        + '</tr></tfoot></table>'
+        + '<p>Mit freundlichen Gr&uuml;&szlig;en</p>';
+
+    return { html, total, count: (items || []).length };
 };
 // ─────────────────────────────────────────────────────────────────────────────

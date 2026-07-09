@@ -236,3 +236,60 @@ test('moveCostLine: Rückweg über relatedItemId, wenn keine ERP-ID vorhanden', 
     const proj = back.items.find(c => c.id === 'ci-p');
     assert.deepEqual(proj.lines.map(l => l.id).sort(), ['l1', 'l2']);
 });
+
+// ── Runde 2: booked_other_kst, Invoices, HTML-Tabelle ───────────────────────
+test('aggregateSettlement: booked_other_kst zählt nicht ins Minus', () => {
+    const items = [
+        ci({ id: 'c1', empId: 'emp-1' }),                                        // to_submit, 100
+        ci({ id: 'c2', empId: 'emp-1', settlementStatus: 'booked_other_kst' }),  // fremde KST, 100
+    ];
+    const agg = aggregateSettlement(items, employees, teamKst);
+    const as = agg.find(g => g.team === 'AS');
+    assert.equal(as.raw, 100);
+    assert.equal(as.otherKst, 100);
+    assert.equal(as.adjusted, 100);
+    assert.equal(as.items.length, 2); // sichtbar bleibt der Posten trotzdem
+});
+
+test('aggregateSettlement: booksOnInvoice-Mitarbeiter → eigener Invoices-Posten', () => {
+    const emps = [...employees, { id: 'emp-inv', name: 'Ida Invoice', category: 'AS', booksOnInvoice: true }];
+    const items = [
+        ci({ id: 'c1', empId: 'emp-1' }),                       // normal, 100
+        ci({ id: 'c2', empId: 'emp-inv' }),                     // Invoice, 100
+        ci({ id: 'c3', empId: 'emp-inv', settlementStatus: 'submitted' }), // Invoice schlägt Status
+    ];
+    const agg = aggregateSettlement(items, emps, teamKst);
+    const as = agg.find(g => g.team === 'AS');
+    assert.equal(as.raw, 100);
+    assert.equal(as.invoices, 200);
+    assert.equal(as.toSubmit, 100);
+    assert.equal(as.submitted, 0);
+    assert.equal(as.adjusted, 100);
+    assert.equal(as.items.length, 3);
+});
+
+test('getSettlementStatus: booked_other_kst ist gültiger expliziter Status', () => {
+    assert.equal(getSettlementStatus(ci({ settlementStatus: 'booked_other_kst' })), 'booked_other_kst');
+    assert.ok(SETTLEMENT_STATUS_ORDER.includes('booked_other_kst'));
+});
+
+test('buildAccountingEmailHtml: echte Tabelle mit Escaping und Summen', () => {
+    const { buildAccountingEmailHtml } = app;
+    const items = [
+        ci({ id: 'c1', empId: 'emp-1', reportKey: '943829',
+             lines: [{ id: 'l', type: 'travel', amount: 100.5 }] }),
+    ];
+    const emps = [{ id: 'emp-1', name: 'Anna <b>Schmidt</b> & Co', category: 'AS' }];
+    const res = buildAccountingEmailHtml(items, emps, projects, teamKst);
+    assert.equal(res.total, 100.5);
+    assert.equal(res.count, 1);
+    assert.match(res.html, /<table[^>]*border-collapse/);
+    assert.match(res.html, /Abrechnungsschl&uuml;ssel/);
+    // HTML im Namen wird escaped, kein rohes <b>
+    assert.ok(!res.html.includes('<b>Schmidt</b>'));
+    assert.match(res.html, /Anna &lt;b&gt;Schmidt&lt;\/b&gt; &amp; Co/);
+    assert.match(res.html, /943829/);
+    assert.match(res.html, /100\.50/);
+    assert.match(res.html, /GESAMTSUMME/);
+    assert.match(res.html, /77001/); // Projekt-KST als Umbuchungsziel
+});
