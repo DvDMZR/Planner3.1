@@ -73,13 +73,16 @@ const TravelCostsView = ({ s, h }) => {
         submitted: acc.submitted + g.submitted, adjusted: acc.adjusted + g.adjusted,
     }), { raw: 0, toSubmit: 0, submitted: 0, adjusted: 0 }), [groups]);
 
-    // "Bucht auf Invoice"-Mitarbeiter laufen am KST-Gutschrift-Prozess vorbei
-    // (eigener Minusposten je Team, keine Übermittlung an die Buchhaltung).
+    // "Bucht auf Invoice"-Mitarbeiter buchen ihre Reisekosten über einen
+    // anderen Kanal (Kunden-Invoice statt KST-Gutschrift) und werden separat
+    // bilanziert (g.invoices* statt raw/adjusted) – das heißt aber nicht, dass
+    // diese Posten eingefroren sind: sie durchlaufen denselben Status und
+    // können ganz normal übermittelt werden.
     const isInvoiceItem = (ci) => !!employeeById.get(ci.empId)?.booksOnInvoice;
 
     const toSubmitItems = useMemo(
-        () => filtered.filter(ci => getSettlementStatus(ci) === 'to_submit' && !isInvoiceItem(ci)),
-        [filtered, employeeById]);
+        () => filtered.filter(ci => getSettlementStatus(ci) === 'to_submit'),
+        [filtered]);
 
     // Klick auf einen Spaltenkopf: gleiche Spalte → Richtung drehen,
     // andere Spalte → aufsteigend starten.
@@ -422,7 +425,7 @@ const TravelCostsView = ({ s, h }) => {
                             {statTile(t('travel.colSubmitted'), `+${fmt2(g.submitted)} €`, 'text-emerald-700')}
                             {statTile(t('travel.colAdjusted'), `-${fmt2(g.adjusted)} €`)}
                             {g.otherKst > 0 && statTile(t('travel.colOtherKst'), `${fmt2(g.otherKst)} €`, 'text-sky-700')}
-                            {g.invoices > 0 && statTile(t('travel.colInvoices'), `-${fmt2(g.invoices)} €`, 'text-violet-700')}
+                            {g.invoicesRaw > 0 && statTile(t('travel.colInvoices'), `-${fmt2(g.invoicesAdjusted)} €`, 'text-violet-700')}
                         </div>
 
                         <table className="w-full text-left text-sm border-t border-slate-100">
@@ -455,7 +458,15 @@ const TravelCostsView = ({ s, h }) => {
                                                     className={`transition-transform text-slate-400 text-xs ${open ? 'rotate-90' : ''}`}>▶</button>
                                             </td>
                                             <td className="p-3 text-slate-800 font-medium">
-                                                {emp?.name || '–'}
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    {emp?.name || '–'}
+                                                    {invoiceItem && (
+                                                        <span title={t('travel.invoiceChipHint')}
+                                                            className="text-[10px] px-1.5 py-0.5 rounded-full border font-medium bg-violet-100 border-violet-200 text-violet-700">
+                                                            {t('travel.invoiceChip')}
+                                                        </span>
+                                                    )}
+                                                </span>
                                                 {ci.description && <span className="block text-xs text-slate-400 font-normal truncate max-w-[14rem]">{ci.description}</span>}
                                             </td>
                                             <td className="p-3 text-slate-600">
@@ -482,14 +493,9 @@ const TravelCostsView = ({ s, h }) => {
                                                     className="w-28 p-1.5 border border-slate-300 rounded text-sm font-mono"/>
                                             </td>
                                             <td className="p-3">
-                                                {invoiceItem ? (
-                                                    // Mitarbeiter bucht auf Invoice → läuft am
-                                                    // KST-Gutschrift-Prozess vorbei, kein Statuswechsel.
-                                                    <span title={t('travel.invoiceChipHint')}
-                                                        className="text-xs px-2 py-0.5 rounded-full border font-medium bg-violet-100 border-violet-200 text-violet-700">
-                                                        {t('travel.invoiceChip')}
-                                                    </span>
-                                                ) : (<>
+                                                {/* Invoice-Posten durchlaufen denselben Status-Workflow wie
+                                                    normale Kostenpunkte (nur die Bilanzierung läuft getrennt) –
+                                                    kein starrer Chip, volle Statuswahl. */}
                                                 <div className="flex items-center gap-2">
                                                     <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`}/>
                                                     <select value={status}
@@ -504,7 +510,6 @@ const TravelCostsView = ({ s, h }) => {
                                                         {new Date(ci.submittedAt).toLocaleDateString('de-DE')}{ci.submittedBy ? ` · ${ci.submittedBy}` : ''}
                                                     </p>
                                                 )}
-                                                </>)}
                                             </td>
                                         </tr>
                                         {open && (
@@ -519,7 +524,7 @@ const TravelCostsView = ({ s, h }) => {
                                                             // zurück zum Projekt-Gegenstück derselben Reise (falls vorhanden).
                                                             const projSibling = (!ci.projectId && l.type !== 'hours')
                                                                 ? findTripSibling(costItems, ci, true) : null;
-                                                            const canMove = l.type !== 'hours' && !invoiceItem && (ci.projectId || projSibling);
+                                                            const canMove = l.type !== 'hours' && (ci.projectId || projSibling);
                                                             return (
                                                                 <div key={l.id} className="flex items-center gap-2 text-xs">
                                                                     <span className={`px-2 py-0.5 rounded-full border font-medium shrink-0 ${lcfg.chip}`}>{lcfg.label}</span>

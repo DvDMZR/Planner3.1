@@ -156,39 +156,37 @@ const SetupEmpView = ({ s, h }) => {
 
                                     {!isCollapsed && (
                                         catEmps.length > 0 ? (
-                                            <table className="w-full text-left text-sm">
+                                            // table-fixed + feste Spaltenbreiten (Muster wie setup-proj.jsx/
+                                            // resource.jsx): verhindert, dass ein langer Name die Aktions-Spalte
+                                            // aus dem sichtbaren Bereich der Karte drängt. Lange Werte werden
+                                            // per truncate abgeschnitten, der volle Text steht im title-Tooltip.
+                                            // E-Mail/Std.-Woche stehen nur noch im Bearbeiten-Dialog, nicht in
+                                            // der Übersicht (weniger Spalten = weniger Kollisionsrisiko).
+                                            <table className="w-full text-left text-sm table-fixed">
                                                 <thead className="bg-slate-50/50">
                                                     <tr>
                                                         <th className="p-4 text-slate-500 font-medium">{t('emp.colName')}</th>
-                                                        <th className="p-4 text-slate-500 font-medium">{t('emp.colEmail')}</th>
-                                                        <th className="p-4 text-slate-500 font-medium text-center">{t('emp.colHours')}</th>
-                                                        <th className="p-4 text-slate-500 font-medium">{t('emp.colStatus')}</th>
-                                                        <th className="p-4"></th>
+                                                        <th className="p-4 text-slate-500 font-medium w-28">{t('emp.colStatus')}</th>
+                                                        <th className="p-4 w-40"></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-300">
                                                     {catEmps.map(e => (
                                                         <tr key={e.id} className="hover:bg-slate-50 transition-colors">
                                                             <td className="p-4 text-slate-900 font-medium">
-                                                                {e.name}
-                                                                {e.role && <div className="text-xs text-slate-400 font-normal mt-0.5">{e.role}</div>}
-                                                            </td>
-                                                            <td className="p-4 text-slate-600 text-sm">
-                                                                {e.email
-                                                                    ? <a href={`mailto:${encodeURIComponent(e.email)}`} className="text-gea-600 hover:text-gea-700">{e.email}</a>
-                                                                    : <span className="text-slate-300">—</span>}
-                                                            </td>
-                                                            <td className="p-4 text-center">
-                                                                <span className="text-sm font-medium text-slate-700">{e.weeklyHours ?? HOURS_PER_WEEK}h</span>
+                                                                <div className="truncate" title={e.name}>{e.name}</div>
+                                                                {e.role && <div className="text-xs text-slate-400 font-normal mt-0.5 truncate" title={e.role}>{e.role}</div>}
                                                             </td>
                                                             <td className="p-4">
                                                                 <span className={`px-2 py-1 rounded text-xs font-medium ${e.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
                                                                     {e.active ? t('emp.active') : t('emp.inactive')}
                                                                 </span>
                                                             </td>
-                                                            <td className="p-4 text-right flex justify-end gap-3">
-                                                                <button onClick={() => handleEditEmp(e)} className="text-gea-600 text-xs font-medium hover:text-gea-700">{t('btn.edit')}</button>
-                                                                <button onClick={() => setEmployees(employees.map(x => x.id === e.id ? {...x, active: !x.active} : x))} className="text-gea-600 text-xs font-medium hover:text-gea-700">{t('emp.toggleStatus')}</button>
+                                                            <td className="p-4 text-right">
+                                                                <div className="flex justify-end gap-3 whitespace-nowrap">
+                                                                    <button onClick={() => handleEditEmp(e)} className="text-gea-600 text-xs font-medium hover:text-gea-700">{t('btn.edit')}</button>
+                                                                    <button onClick={() => setEmployees(employees.map(x => x.id === e.id ? {...x, active: !x.active} : x))} className="text-gea-600 text-xs font-medium hover:text-gea-700">{t('emp.toggleStatus')}</button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     ))}
