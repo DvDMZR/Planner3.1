@@ -11,6 +11,7 @@ const ExpenseImportModal = ({
   proj,
   projects = [],
   teamKst = {},
+  computeAutoStatus = null,
   employees,
   assignments,
   costItems,
@@ -59,9 +60,27 @@ const ExpenseImportModal = ({
     const n = parseFloat(String(v).replace(',', '.'));
     return Number.isFinite(n) && n >= 0 ? n : 0;
   };
-  // Projekt-Anzeige wie in den Planungsdialogen: Anlagentyp, Name, Größe.
-  const projLabel = p => [p.projType, p.name, p.size].filter(v => v !== undefined && v !== null && String(v).trim() !== '').join(' ');
+  // Projekt-Anzeige wie in den Planungsdialogen: Anlagentyp, Name, Größe,
+  // dazu das Land (Kurzcode) zur schnelleren Orientierung.
+  const projLabel = p => {
+    const cc = resolveCountryCode(p.country);
+    return [p.projType, p.name, p.size, cc && cc !== '/' && cc !== '??' ? cc : ''].filter(v => v !== undefined && v !== null && String(v).trim() !== '').join(' ');
+  };
   const sortedProjects = useMemo(() => [...(projects || [])].sort((a, b) => projLabel(a).localeCompare(projLabel(b), 'de')), [projects]);
+
+  // Projekt-Suchauswahl: Standard sind angefangene sowie vergangene Projekte,
+  // deren Kosten noch nicht übermittelt wurden (active/missing_costs/
+  // completed); "Fängt noch an" und "Kosten übermittelt" sind zuschaltbar.
+  const [projSearch, setProjSearch] = useState('');
+  const [showAllProjects, setShowAllProjects] = useState(false);
+  const DEFAULT_PICKER_STATUSES = ['active', 'missing_costs', 'completed'];
+  const pickerProjects = useMemo(() => {
+    const q = projSearch.trim().toLowerCase();
+    return sortedProjects.filter(p => {
+      if (!showAllProjects && typeof computeAutoStatus === 'function' && !DEFAULT_PICKER_STATUSES.includes(computeAutoStatus(p)) && p.id !== otherProjectId) return false;
+      return !q || projLabel(p).toLowerCase().includes(q);
+    });
+  }, [sortedProjects, projSearch, showAllProjects, computeAutoStatus, otherProjectId]);
   const activeEmployees = useMemo(() => (employees || []).filter(e => e.active !== false), [employees]);
   // Konfigurierbare Kategorien (Verwaltung → Kategorien → Spesen-Kategorien)
   const cats = useMemo(() => normalizeExpenseCategories(expenseCategories), [expenseCategories]);
@@ -455,7 +474,9 @@ const ExpenseImportModal = ({
     className: "text-slate-800 font-medium"
   }, projLabel(project)), /*#__PURE__*/React.createElement("span", {
     className: "text-xs text-slate-500"
-  }, t('expense.plannedInWeeks').replace('{weeks}', weeks.map(w => formatKW(w)).join(', '))))), /*#__PURE__*/React.createElement("label", {
+  }, t('expense.plannedInWeeks').replace('{weeks}', weeks.map(w => formatKW(w)).join(', '))))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-1.5"
+  }, /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 text-sm cursor-pointer select-none"
   }, /*#__PURE__*/React.createElement("input", {
     type: "radio",
@@ -465,19 +486,44 @@ const ExpenseImportModal = ({
     className: "w-4 h-4 text-gea-600"
   }), /*#__PURE__*/React.createElement("span", {
     className: "text-slate-700"
-  }, t('expense.otherProject')), /*#__PURE__*/React.createElement("select", {
-    value: otherProjectId,
-    onChange: e => {
-      setTargetChoice('other');
-      setOtherProjectId(e.target.value);
-    },
-    className: "p-1.5 border border-slate-300 rounded-md text-sm bg-white flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, t('expense.selectProject')), sortedProjects.map(p => /*#__PURE__*/React.createElement("option", {
+  }, t('expense.otherProject')), targetChoice === 'other' && otherProjectId && /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-gea-700 font-medium truncate"
+  }, projLabel((projects || []).find(p => p.id === otherProjectId) || {}))), targetChoice === 'other' &&
+  /*#__PURE__*/
+  // Suchauswahl statt <select>: bei vielen Projekten
+  // filterbar über Typ/Name/Größe/Land; Standard zeigt
+  // nur laufende + vergangene ohne Kostenübermittlung.
+  React.createElement("div", {
+    className: "ml-6 border border-slate-200 rounded-lg bg-white overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "p-2 border-b border-slate-100 flex items-center gap-3 flex-wrap"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: projSearch,
+    autoFocus: true,
+    onChange: e => setProjSearch(e.target.value),
+    placeholder: t('expense.searchProject'),
+    className: "flex-1 min-w-[10rem] p-1.5 border border-slate-300 rounded text-sm"
+  }), /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: showAllProjects,
+    onChange: e => setShowAllProjects(e.target.checked),
+    className: "w-3.5 h-3.5 text-gea-600 rounded"
+  }), t('expense.showAllProjects'))), /*#__PURE__*/React.createElement("div", {
+    className: "max-h-44 overflow-y-auto divide-y divide-slate-50"
+  }, pickerProjects.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "p-3 text-xs text-slate-400"
+  }, t('expense.noProjectMatch')) : pickerProjects.map(p => /*#__PURE__*/React.createElement("button", {
     key: p.id,
-    value: p.id
-  }, projLabel(p))))), /*#__PURE__*/React.createElement("label", {
+    type: "button",
+    onClick: () => {
+      setTargetChoice('other');
+      setOtherProjectId(p.id);
+    },
+    className: `w-full text-left px-3 py-1.5 text-sm hover:bg-gea-50 ${otherProjectId === p.id ? 'bg-gea-50 text-gea-800 font-medium' : 'text-slate-700'}`
+  }, projLabel(p)))))), /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 text-sm cursor-pointer select-none"
   }, /*#__PURE__*/React.createElement("input", {
     type: "radio",
@@ -503,7 +549,9 @@ const ExpenseImportModal = ({
     value: "to_submit"
   }, t('travel.status.to_submit')), /*#__PURE__*/React.createElement("option", {
     value: "remain_on_kst"
-  }, t('travel.status.remain_on_kst'))), /*#__PURE__*/React.createElement("span", {
+  }, t('travel.status.remain_on_kst')), /*#__PURE__*/React.createElement("option", {
+    value: "booked_other_kst"
+  }, t('travel.status.booked_other_kst'))), /*#__PURE__*/React.createElement("span", {
     className: "text-sm text-slate-500 ml-2"
   }, t('expense.targetAccount'), ":"), /*#__PURE__*/React.createElement("input", {
     type: "text",

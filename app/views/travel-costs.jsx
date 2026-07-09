@@ -16,7 +16,7 @@ const TravelCostsView = ({ s, h }) => {
     } = s;
     const {
         setCostItems, setEmpAliases, setFxRates, setActiveTab,
-        setSelectedProjectDetails,
+        setSelectedProjectDetails, computeAutoStatus,
         handleSaveAssignment, showToast, requestConfirm, logAudit,
     } = h;
 
@@ -35,6 +35,9 @@ const TravelCostsView = ({ s, h }) => {
     const [isSendOpen, setIsSendOpen] = useState(false);
     const [sendTeam, setSendTeam] = useState('all');
     const [sendSel, setSendSel] = useState({});                 // { ciId: bool }
+    // Sortierung der Posten-Tabellen (gilt für alle Team-Karten gemeinsam)
+    const [sortKey, setSortKey] = useState('kw');               // emp|project|kw|reportKey|amount|status
+    const [sortDir, setSortDir] = useState('asc');
 
     const fmt2 = (n) => (n || 0).toFixed(2);
     const itemYear = (ci) => (ci.dateFrom || ci.week || '').slice(0, 4);
@@ -70,9 +73,48 @@ const TravelCostsView = ({ s, h }) => {
         submitted: acc.submitted + g.submitted, adjusted: acc.adjusted + g.adjusted,
     }), { raw: 0, toSubmit: 0, submitted: 0, adjusted: 0 }), [groups]);
 
+    // "Bucht auf Invoice"-Mitarbeiter laufen am KST-Gutschrift-Prozess vorbei
+    // (eigener Minusposten je Team, keine Übermittlung an die Buchhaltung).
+    const isInvoiceItem = (ci) => !!employeeById.get(ci.empId)?.booksOnInvoice;
+
     const toSubmitItems = useMemo(
-        () => filtered.filter(ci => getSettlementStatus(ci) === 'to_submit'),
-        [filtered]);
+        () => filtered.filter(ci => getSettlementStatus(ci) === 'to_submit' && !isInvoiceItem(ci)),
+        [filtered, employeeById]);
+
+    // Klick auf einen Spaltenkopf: gleiche Spalte → Richtung drehen,
+    // andere Spalte → aufsteigend starten.
+    const toggleSort = (key) => {
+        if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        else { setSortKey(key); setSortDir('asc'); }
+    };
+    const sortItems = (items) => {
+        const val = (ci) => {
+            switch (sortKey) {
+                case 'emp':       return employeeById.get(ci.empId)?.name || '';
+                case 'project':   return ci.projectId ? (projectById.get(ci.projectId)?.name || '') : '';
+                case 'reportKey': return ci.reportKey || '';
+                case 'amount':    return settlementAmount(ci);
+                case 'status':    return isInvoiceItem(ci) ? SETTLEMENT_STATUS_ORDER.length
+                                       : SETTLEMENT_STATUS_ORDER.indexOf(getSettlementStatus(ci));
+                default:          return ci.dateFrom || ci.week || '';
+            }
+        };
+        const sign = sortDir === 'asc' ? 1 : -1;
+        return [...items].sort((a, b) => {
+            const va = val(a), vb = val(b);
+            const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'de');
+            return cmp * sign;
+        });
+    };
+    const sortHeader = (key, label, extra = '') => (
+        <th className={`p-3 text-slate-500 font-medium ${extra}`}>
+            <button onClick={() => toggleSort(key)}
+                title={t('travel.sortHint')}
+                className={`hover:text-slate-800 ${sortKey === key ? 'text-slate-800' : ''}`}>
+                {label}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+            </button>
+        </th>
+    );
 
     const sortedEmployees = useMemo(
         () => [...(employees || [])].sort((a, b) => a.name.localeCompare(b.name)),
@@ -128,6 +170,36 @@ const TravelCostsView = ({ s, h }) => {
 
     const setTargetAccount = (ciId, value) =>
         setCostItems(prev => prev.map(c => c.id === ciId ? { ...c, targetAccount: value } : c));
+
+    // Einzelposten nachträglich zwischen Projekt und KST verschieben
+    // (moveCostLine in settlement.js legt bei Bedarf den internen
+    // Schwester-Kostenpunkt der Reise an bzw. löst leere Punkte auf).
+    const moveLine = (ci, line) => {
+        const doMove = () => {
+            const res = moveCostLine(costItems, ci.id, line.id, { kstSuffix: t('expense.kstSplitSuffix') });
+            if (!res.moved) {
+                if (res.error === 'noProjectSibling') showToast(t('travel.noProjectSibling'), { type: 'warning' });
+                return;
+            }
+            setCostItems(res.items);
+            const emp = employeeById.get(ci.empId);
+            logAudit('settlement_status',
+                `Einzelposten ${(line.amount || 0).toFixed(2)} EUR (${emp?.name || ci.empId}) ${res.direction === 'toKst' ? 'auf KST verschoben' : 'dem Projekt zugeordnet'}`);
+            showToast(t(res.direction === 'toKst' ? 'travel.movedToKst' : 'travel.movedToProject'),
+                { type: 'success', duration: 3000 });
+        };
+        if (getSettlementStatus(ci) === 'submitted') {
+            requestConfirm({
+                title: t('travel.moveSubmittedTitle'),
+                message: t('travel.moveSubmittedMsg'),
+                confirmLabel: t('travel.moveBtn'),
+                danger: true,
+                onConfirm: doMove,
+            });
+        } else {
+            doMove();
+        }
+    };
 
     // Bulk: alle offenen Posten eines Teams auf der KST belassen (v. a. für
     // Alt-Bestände, die per Lazy-Default auf 'Zu übermitteln' stehen).
@@ -189,17 +261,27 @@ const TravelCostsView = ({ s, h }) => {
         showToast(t('travel.markedSubmitted'), { type: 'success', duration: 4000 });
     };
 
+    // Legt die Übersicht als ECHTE Tabelle (text/html) plus Klartext-Fallback
+    // in die Zwischenablage – in Outlook eingefügt erscheint sie formatiert.
     const copySelection = () => {
         if (sendSelected.length === 0) { showToast(t('travel.nothingToSubmit'), { type: 'warning' }); return; }
         const mail = buildAccountingEmail(sendSelected, employees, projects, teamKst);
+        const { html } = buildAccountingEmailHtml(sendSelected, employees, projects, teamKst);
         const text = `${mail.subject}\n\n${mail.body}`;
-        const done = () => showToast(t('travel.copied'), { type: 'success', duration: 3000 });
-        if (navigator.clipboard?.writeText) {
-            navigator.clipboard.writeText(text).then(done).catch(() => {
-                showToast(t('travel.copyFailed'), { type: 'error' });
+        const done = () => showToast(t('travel.copiedTable'), { type: 'success', duration: 3000 });
+        const fail = () => showToast(t('travel.copyFailed'), { type: 'error' });
+        if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+            navigator.clipboard.write([new ClipboardItem({
+                'text/html': new Blob([html], { type: 'text/html' }),
+                'text/plain': new Blob([text], { type: 'text/plain' }),
+            })]).then(done).catch(() => {
+                // Fallback: nur Klartext (ältere Browser/Berechtigungen)
+                navigator.clipboard?.writeText?.(text).then(done).catch(fail);
             });
+        } else if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text).then(done).catch(fail);
         } else {
-            showToast(t('travel.copyFailed'), { type: 'error' });
+            fail();
         }
     };
 
@@ -339,27 +421,30 @@ const TravelCostsView = ({ s, h }) => {
                             {statTile(t('travel.colRemain'), `${fmt2(g.remain)} €`, 'text-slate-700')}
                             {statTile(t('travel.colSubmitted'), `+${fmt2(g.submitted)} €`, 'text-emerald-700')}
                             {statTile(t('travel.colAdjusted'), `-${fmt2(g.adjusted)} €`)}
+                            {g.otherKst > 0 && statTile(t('travel.colOtherKst'), `${fmt2(g.otherKst)} €`, 'text-sky-700')}
+                            {g.invoices > 0 && statTile(t('travel.colInvoices'), `-${fmt2(g.invoices)} €`, 'text-violet-700')}
                         </div>
 
                         <table className="w-full text-left text-sm border-t border-slate-100">
                             <thead className="bg-slate-50 border-b border-slate-200">
                                 <tr>
                                     <th className="p-3 w-8"></th>
-                                    <th className="p-3 text-slate-500 font-medium">{t('travel.colEmployee')}</th>
-                                    <th className="p-3 text-slate-500 font-medium">{t('travel.colProject')}</th>
-                                    <th className="p-3 text-slate-500 font-medium text-center">{t('util.kw')}</th>
-                                    <th className="p-3 text-slate-500 font-medium">{t('travel.colReportKey')}</th>
-                                    <th className="p-3 text-slate-500 font-medium text-right">{t('travel.colAmount')}</th>
+                                    {sortHeader('emp', t('travel.colEmployee'))}
+                                    {sortHeader('project', t('travel.colProject'))}
+                                    {sortHeader('kw', t('util.kw'), 'text-center')}
+                                    {sortHeader('reportKey', t('travel.colReportKey'))}
+                                    {sortHeader('amount', t('travel.colAmount'), 'text-right')}
                                     <th className="p-3 text-slate-500 font-medium">{t('travel.colTarget')}</th>
-                                    <th className="p-3 text-slate-500 font-medium">{t('travel.colStatus')}</th>
+                                    {sortHeader('status', t('travel.colStatus'))}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {g.items.map(ci => {
+                                {sortItems(g.items).map(ci => {
                                     const emp = employeeById.get(ci.empId);
                                     const proj = ci.projectId ? projectById.get(ci.projectId) : null;
                                     const status = getSettlementStatus(ci);
                                     const cfg = SETTLEMENT_STATUSES[status];
+                                    const invoiceItem = isInvoiceItem(ci);
                                     const open = !!expandedItems[ci.id];
                                     return (
                                         <React.Fragment key={ci.id}>
@@ -397,6 +482,14 @@ const TravelCostsView = ({ s, h }) => {
                                                     className="w-28 p-1.5 border border-slate-300 rounded text-sm font-mono"/>
                                             </td>
                                             <td className="p-3">
+                                                {invoiceItem ? (
+                                                    // Mitarbeiter bucht auf Invoice → läuft am
+                                                    // KST-Gutschrift-Prozess vorbei, kein Statuswechsel.
+                                                    <span title={t('travel.invoiceChipHint')}
+                                                        className="text-xs px-2 py-0.5 rounded-full border font-medium bg-violet-100 border-violet-200 text-violet-700">
+                                                        {t('travel.invoiceChip')}
+                                                    </span>
+                                                ) : (<>
                                                 <div className="flex items-center gap-2">
                                                     <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`}/>
                                                     <select value={status}
@@ -411,6 +504,7 @@ const TravelCostsView = ({ s, h }) => {
                                                         {new Date(ci.submittedAt).toLocaleDateString('de-DE')}{ci.submittedBy ? ` · ${ci.submittedBy}` : ''}
                                                     </p>
                                                 )}
+                                                </>)}
                                             </td>
                                         </tr>
                                         {open && (
@@ -420,6 +514,12 @@ const TravelCostsView = ({ s, h }) => {
                                                     <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-1.5">
                                                         {(ci.lines || []).map(l => {
                                                             const lcfg = COST_LINE_TYPES[l.type] || COST_LINE_TYPES.other;
+                                                            // Verschieben nur für Reisekosten-Zeilen (keine Stunden):
+                                                            // Projekt-Posten → auf KST herauslösen; interne Posten →
+                                                            // zurück zum Projekt-Gegenstück derselben Reise (falls vorhanden).
+                                                            const projSibling = (!ci.projectId && l.type !== 'hours')
+                                                                ? findTripSibling(costItems, ci, true) : null;
+                                                            const canMove = l.type !== 'hours' && !invoiceItem && (ci.projectId || projSibling);
                                                             return (
                                                                 <div key={l.id} className="flex items-center gap-2 text-xs">
                                                                     <span className={`px-2 py-0.5 rounded-full border font-medium shrink-0 ${lcfg.chip}`}>{lcfg.label}</span>
@@ -428,6 +528,13 @@ const TravelCostsView = ({ s, h }) => {
                                                                     )}
                                                                     {l.comment && <span className="text-slate-500 truncate">{l.comment}</span>}
                                                                     <span className="text-slate-700 tabular-nums ml-auto">{(l.amount || 0).toFixed(2)} €</span>
+                                                                    {canMove && (
+                                                                        <button onClick={() => moveLine(ci, l)}
+                                                                            title={ci.projectId ? t('travel.moveToKstHint') : t('travel.moveToProjectHint').replace('{project}', projectById.get(projSibling?.projectId)?.name || '')}
+                                                                            className="shrink-0 px-2 py-0.5 rounded border border-slate-300 text-slate-500 hover:border-gea-400 hover:text-gea-700 hover:bg-gea-50 font-medium">
+                                                                            {ci.projectId ? `→ ${t('travel.moveToKst')}` : `→ ${t('travel.moveToProject')}`}
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                             );
                                                         })}
@@ -526,6 +633,7 @@ const TravelCostsView = ({ s, h }) => {
                         proj={null}
                         projects={projects}
                         teamKst={teamKst}
+                        computeAutoStatus={computeAutoStatus}
                         employees={employees}
                         assignments={assignments}
                         costItems={costItems}

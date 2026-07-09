@@ -337,6 +337,7 @@ const ProjectDetailsView = ({ s, h }) => {
                         proj={proj}
                         projects={projects}
                         teamKst={teamKst}
+                        computeAutoStatus={computeAutoStatus}
                         employees={employees}
                         assignments={assignments}
                         costItems={costItems}

@@ -126,7 +126,8 @@ function App() {
     weeklyHours: HOURS_PER_WEEK,
     email: '',
     role: '',
-    notes: ''
+    notes: '',
+    booksOnInvoice: false
   });
   const [editingEmpId, setEditingEmpId] = useState(null);
   const [isEmpFormOpen, setIsEmpFormOpen] = useState(false);

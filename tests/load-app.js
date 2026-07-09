@@ -31,7 +31,8 @@ const EXPORTS = [
     // settlement.js
     'SETTLEMENT_STATUSES', 'SETTLEMENT_STATUS_ORDER', 'getSettlementStatus',
     'settlementAmount', 'aggregateSettlement', 'findDuplicateExpenseReport',
-    'buildAccountingEmail',
+    'buildAccountingEmail', 'buildAccountingEmailHtml', 'escapeHtml',
+    'findTripSibling', 'moveCostLine',
 ];
 
 function loadApp() {

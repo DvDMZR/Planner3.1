@@ -37,6 +37,7 @@ const TravelCostsView = ({
     setFxRates,
     setActiveTab,
     setSelectedProjectDetails,
+    computeAutoStatus,
     handleSaveAssignment,
     showToast,
     requestConfirm,
@@ -57,7 +58,9 @@ const TravelCostsView = ({
   const [isSendOpen, setIsSendOpen] = useState(false);
   const [sendTeam, setSendTeam] = useState('all');
   const [sendSel, setSendSel] = useState({}); // { ciId: bool }
-
+  // Sortierung der Posten-Tabellen (gilt für alle Team-Karten gemeinsam)
+  const [sortKey, setSortKey] = useState('kw'); // emp|project|kw|reportKey|amount|status
+  const [sortDir, setSortDir] = useState('asc');
   const fmt2 = n => (n || 0).toFixed(2);
   const itemYear = ci => (ci.dateFrom || ci.week || '').slice(0, 4);
   const statusLabel = key => t(`travel.status.${key}`);
@@ -84,7 +87,52 @@ const TravelCostsView = ({
     submitted: 0,
     adjusted: 0
   }), [groups]);
-  const toSubmitItems = useMemo(() => filtered.filter(ci => getSettlementStatus(ci) === 'to_submit'), [filtered]);
+
+  // "Bucht auf Invoice"-Mitarbeiter laufen am KST-Gutschrift-Prozess vorbei
+  // (eigener Minusposten je Team, keine Übermittlung an die Buchhaltung).
+  const isInvoiceItem = ci => !!employeeById.get(ci.empId)?.booksOnInvoice;
+  const toSubmitItems = useMemo(() => filtered.filter(ci => getSettlementStatus(ci) === 'to_submit' && !isInvoiceItem(ci)), [filtered, employeeById]);
+
+  // Klick auf einen Spaltenkopf: gleiche Spalte → Richtung drehen,
+  // andere Spalte → aufsteigend starten.
+  const toggleSort = key => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+  const sortItems = items => {
+    const val = ci => {
+      switch (sortKey) {
+        case 'emp':
+          return employeeById.get(ci.empId)?.name || '';
+        case 'project':
+          return ci.projectId ? projectById.get(ci.projectId)?.name || '' : '';
+        case 'reportKey':
+          return ci.reportKey || '';
+        case 'amount':
+          return settlementAmount(ci);
+        case 'status':
+          return isInvoiceItem(ci) ? SETTLEMENT_STATUS_ORDER.length : SETTLEMENT_STATUS_ORDER.indexOf(getSettlementStatus(ci));
+        default:
+          return ci.dateFrom || ci.week || '';
+      }
+    };
+    const sign = sortDir === 'asc' ? 1 : -1;
+    return [...items].sort((a, b) => {
+      const va = val(a),
+        vb = val(b);
+      const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'de');
+      return cmp * sign;
+    });
+  };
+  const sortHeader = (key, label, extra = '') => /*#__PURE__*/React.createElement("th", {
+    className: `p-3 text-slate-500 font-medium ${extra}`
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => toggleSort(key),
+    title: t('travel.sortHint'),
+    className: `hover:text-slate-800 ${sortKey === key ? 'text-slate-800' : ''}`
+  }, label, sortKey === key ? sortDir === 'asc' ? ' ▲' : ' ▼' : ''));
   const sortedEmployees = useMemo(() => [...(employees || [])].sort((a, b) => a.name.localeCompare(b.name)), [employees]);
   const kwLabel = ci => {
     if (ci.dateFrom) {
@@ -142,6 +190,41 @@ const TravelCostsView = ({
     ...c,
     targetAccount: value
   } : c));
+
+  // Einzelposten nachträglich zwischen Projekt und KST verschieben
+  // (moveCostLine in settlement.js legt bei Bedarf den internen
+  // Schwester-Kostenpunkt der Reise an bzw. löst leere Punkte auf).
+  const moveLine = (ci, line) => {
+    const doMove = () => {
+      const res = moveCostLine(costItems, ci.id, line.id, {
+        kstSuffix: t('expense.kstSplitSuffix')
+      });
+      if (!res.moved) {
+        if (res.error === 'noProjectSibling') showToast(t('travel.noProjectSibling'), {
+          type: 'warning'
+        });
+        return;
+      }
+      setCostItems(res.items);
+      const emp = employeeById.get(ci.empId);
+      logAudit('settlement_status', `Einzelposten ${(line.amount || 0).toFixed(2)} EUR (${emp?.name || ci.empId}) ${res.direction === 'toKst' ? 'auf KST verschoben' : 'dem Projekt zugeordnet'}`);
+      showToast(t(res.direction === 'toKst' ? 'travel.movedToKst' : 'travel.movedToProject'), {
+        type: 'success',
+        duration: 3000
+      });
+    };
+    if (getSettlementStatus(ci) === 'submitted') {
+      requestConfirm({
+        title: t('travel.moveSubmittedTitle'),
+        message: t('travel.moveSubmittedMsg'),
+        confirmLabel: t('travel.moveBtn'),
+        danger: true,
+        onConfirm: doMove
+      });
+    } else {
+      doMove();
+    }
+  };
 
   // Bulk: alle offenen Posten eines Teams auf der KST belassen (v. a. für
   // Alt-Bestände, die per Lazy-Default auf 'Zu übermitteln' stehen).
@@ -213,6 +296,9 @@ const TravelCostsView = ({
       duration: 4000
     });
   };
+
+  // Legt die Übersicht als ECHTE Tabelle (text/html) plus Klartext-Fallback
+  // in die Zwischenablage – in Outlook eingefügt erscheint sie formatiert.
   const copySelection = () => {
     if (sendSelected.length === 0) {
       showToast(t('travel.nothingToSubmit'), {
@@ -221,21 +307,33 @@ const TravelCostsView = ({
       return;
     }
     const mail = buildAccountingEmail(sendSelected, employees, projects, teamKst);
+    const {
+      html
+    } = buildAccountingEmailHtml(sendSelected, employees, projects, teamKst);
     const text = `${mail.subject}\n\n${mail.body}`;
-    const done = () => showToast(t('travel.copied'), {
+    const done = () => showToast(t('travel.copiedTable'), {
       type: 'success',
       duration: 3000
     });
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text).then(done).catch(() => {
-        showToast(t('travel.copyFailed'), {
-          type: 'error'
-        });
+    const fail = () => showToast(t('travel.copyFailed'), {
+      type: 'error'
+    });
+    if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+      navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], {
+          type: 'text/html'
+        }),
+        'text/plain': new Blob([text], {
+          type: 'text/plain'
+        })
+      })]).then(done).catch(() => {
+        // Fallback: nur Klartext (ältere Browser/Berechtigungen)
+        navigator.clipboard?.writeText?.(text).then(done).catch(fail);
       });
+    } else if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
     } else {
-      showToast(t('travel.copyFailed'), {
-        type: 'error'
-      });
+      fail();
     }
   };
   const sendSelection = () => {
@@ -399,33 +497,22 @@ const TravelCostsView = ({
       className: "text-xs font-medium text-slate-500 hover:text-slate-700 underline decoration-dotted"
     }, t('travel.bulkRemainBtn')))), !collapsed && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "p-4 flex flex-wrap gap-3"
-    }, statTile(t('travel.colRaw'), `-${fmt2(g.raw)} €`, 'text-rose-700'), statTile(t('travel.colToSubmit'), `${fmt2(g.toSubmit)} €`, 'text-amber-700'), statTile(t('travel.colRemain'), `${fmt2(g.remain)} €`, 'text-slate-700'), statTile(t('travel.colSubmitted'), `+${fmt2(g.submitted)} €`, 'text-emerald-700'), statTile(t('travel.colAdjusted'), `-${fmt2(g.adjusted)} €`)), /*#__PURE__*/React.createElement("table", {
+    }, statTile(t('travel.colRaw'), `-${fmt2(g.raw)} €`, 'text-rose-700'), statTile(t('travel.colToSubmit'), `${fmt2(g.toSubmit)} €`, 'text-amber-700'), statTile(t('travel.colRemain'), `${fmt2(g.remain)} €`, 'text-slate-700'), statTile(t('travel.colSubmitted'), `+${fmt2(g.submitted)} €`, 'text-emerald-700'), statTile(t('travel.colAdjusted'), `-${fmt2(g.adjusted)} €`), g.otherKst > 0 && statTile(t('travel.colOtherKst'), `${fmt2(g.otherKst)} €`, 'text-sky-700'), g.invoices > 0 && statTile(t('travel.colInvoices'), `-${fmt2(g.invoices)} €`, 'text-violet-700')), /*#__PURE__*/React.createElement("table", {
       className: "w-full text-left text-sm border-t border-slate-100"
     }, /*#__PURE__*/React.createElement("thead", {
       className: "bg-slate-50 border-b border-slate-200"
     }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
       className: "p-3 w-8"
-    }), /*#__PURE__*/React.createElement("th", {
+    }), sortHeader('emp', t('travel.colEmployee')), sortHeader('project', t('travel.colProject')), sortHeader('kw', t('util.kw'), 'text-center'), sortHeader('reportKey', t('travel.colReportKey')), sortHeader('amount', t('travel.colAmount'), 'text-right'), /*#__PURE__*/React.createElement("th", {
       className: "p-3 text-slate-500 font-medium"
-    }, t('travel.colEmployee')), /*#__PURE__*/React.createElement("th", {
-      className: "p-3 text-slate-500 font-medium"
-    }, t('travel.colProject')), /*#__PURE__*/React.createElement("th", {
-      className: "p-3 text-slate-500 font-medium text-center"
-    }, t('util.kw')), /*#__PURE__*/React.createElement("th", {
-      className: "p-3 text-slate-500 font-medium"
-    }, t('travel.colReportKey')), /*#__PURE__*/React.createElement("th", {
-      className: "p-3 text-slate-500 font-medium text-right"
-    }, t('travel.colAmount')), /*#__PURE__*/React.createElement("th", {
-      className: "p-3 text-slate-500 font-medium"
-    }, t('travel.colTarget')), /*#__PURE__*/React.createElement("th", {
-      className: "p-3 text-slate-500 font-medium"
-    }, t('travel.colStatus')))), /*#__PURE__*/React.createElement("tbody", {
+    }, t('travel.colTarget')), sortHeader('status', t('travel.colStatus')))), /*#__PURE__*/React.createElement("tbody", {
       className: "divide-y divide-slate-100"
-    }, g.items.map(ci => {
+    }, sortItems(g.items).map(ci => {
       const emp = employeeById.get(ci.empId);
       const proj = ci.projectId ? projectById.get(ci.projectId) : null;
       const status = getSettlementStatus(ci);
       const cfg = SETTLEMENT_STATUSES[status];
+      const invoiceItem = isInvoiceItem(ci);
       const open = !!expandedItems[ci.id];
       return /*#__PURE__*/React.createElement(React.Fragment, {
         key: ci.id
@@ -469,7 +556,14 @@ const TravelCostsView = ({
         className: "w-28 p-1.5 border border-slate-300 rounded text-sm font-mono"
       })), /*#__PURE__*/React.createElement("td", {
         className: "p-3"
-      }, /*#__PURE__*/React.createElement("div", {
+      }, invoiceItem ?
+      /*#__PURE__*/
+      // Mitarbeiter bucht auf Invoice → läuft am
+      // KST-Gutschrift-Prozess vorbei, kein Statuswechsel.
+      React.createElement("span", {
+        title: t('travel.invoiceChipHint'),
+        className: "text-xs px-2 py-0.5 rounded-full border font-medium bg-violet-100 border-violet-200 text-violet-700"
+      }, t('travel.invoiceChip')) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
         className: "flex items-center gap-2"
       }, /*#__PURE__*/React.createElement("span", {
         className: `w-2 h-2 rounded-full shrink-0 ${cfg.dot}`
@@ -482,7 +576,7 @@ const TravelCostsView = ({
         value: k
       }, statusLabel(k))))), status === 'submitted' && ci.submittedAt && /*#__PURE__*/React.createElement("p", {
         className: "text-[10px] text-slate-400 mt-1"
-      }, new Date(ci.submittedAt).toLocaleDateString('de-DE'), ci.submittedBy ? ` · ${ci.submittedBy}` : ''))), open && /*#__PURE__*/React.createElement("tr", {
+      }, new Date(ci.submittedAt).toLocaleDateString('de-DE'), ci.submittedBy ? ` · ${ci.submittedBy}` : '')))), open && /*#__PURE__*/React.createElement("tr", {
         className: "bg-slate-50/60"
       }, /*#__PURE__*/React.createElement("td", {
         className: "p-0"
@@ -493,6 +587,11 @@ const TravelCostsView = ({
         className: "rounded-lg border border-slate-200 bg-white p-3 space-y-1.5"
       }, (ci.lines || []).map(l => {
         const lcfg = COST_LINE_TYPES[l.type] || COST_LINE_TYPES.other;
+        // Verschieben nur für Reisekosten-Zeilen (keine Stunden):
+        // Projekt-Posten → auf KST herauslösen; interne Posten →
+        // zurück zum Projekt-Gegenstück derselben Reise (falls vorhanden).
+        const projSibling = !ci.projectId && l.type !== 'hours' ? findTripSibling(costItems, ci, true) : null;
+        const canMove = l.type !== 'hours' && !invoiceItem && (ci.projectId || projSibling);
         return /*#__PURE__*/React.createElement("div", {
           key: l.id,
           className: "flex items-center gap-2 text-xs"
@@ -504,7 +603,11 @@ const TravelCostsView = ({
           className: "text-slate-500 truncate"
         }, l.comment), /*#__PURE__*/React.createElement("span", {
           className: "text-slate-700 tabular-nums ml-auto"
-        }, (l.amount || 0).toFixed(2), " \u20AC"));
+        }, (l.amount || 0).toFixed(2), " \u20AC"), canMove && /*#__PURE__*/React.createElement("button", {
+          onClick: () => moveLine(ci, l),
+          title: ci.projectId ? t('travel.moveToKstHint') : t('travel.moveToProjectHint').replace('{project}', projectById.get(projSibling?.projectId)?.name || ''),
+          className: "shrink-0 px-2 py-0.5 rounded border border-slate-300 text-slate-500 hover:border-gea-400 hover:text-gea-700 hover:bg-gea-50 font-medium"
+        }, ci.projectId ? `→ ${t('travel.moveToKst')}` : `→ ${t('travel.moveToProject')}`));
       }), /*#__PURE__*/React.createElement("div", {
         className: "flex items-center gap-3 pt-1.5 border-t border-slate-100 text-xs text-slate-400"
       }, ci.expenseReportId && /*#__PURE__*/React.createElement("span", null, t('expense.reportId'), ": ", /*#__PURE__*/React.createElement("span", {
@@ -600,6 +703,7 @@ const TravelCostsView = ({
     proj: null,
     projects: projects,
     teamKst: teamKst,
+    computeAutoStatus: computeAutoStatus,
     employees: employees,
     assignments: assignments,
     costItems: costItems,

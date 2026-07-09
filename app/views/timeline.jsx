@@ -315,7 +315,7 @@ const TimelineView = ({ s, h }) => {
                                                                 <button
                                                                     onClick={() => { setSelectedProjectDetails(proj.id); setActiveTab('setup_proj'); }}
                                                                     className="text-slate-900 font-medium text-left truncate hover:text-gea-700 hover:underline transition-colors"
-                                                                    title="Projekt-Einstellungen öffnen">
+                                                                    {...(!proj.notes && { title: 'Projekt-Einstellungen öffnen' })}>
                                                                     {projLabel}
                                                                 </button>
                                                                 </Tooltip>

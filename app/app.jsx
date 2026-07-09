@@ -118,7 +118,7 @@ function App() {
     }, []);
 
     // Forms
-    const [empForm, setEmpForm] = useState({ name: '', category: '', weeklyHours: HOURS_PER_WEEK, email: '', role: '', notes: '' });
+    const [empForm, setEmpForm] = useState({ name: '', category: '', weeklyHours: HOURS_PER_WEEK, email: '', role: '', notes: '', booksOnInvoice: false });
     const [editingEmpId, setEditingEmpId] = useState(null);
     const [isEmpFormOpen, setIsEmpFormOpen] = useState(false);
     const [projForm, setProjForm] = useState({ name: '', category: '', projectNumber: '', kst: '', address: '', country: '', startWeek: '', ibnWeek: '', color: 'gea', hourlyRate: DEFAULT_HOURLY_RATE, billable: true, projType: '', size: '', sharepointLink: '', notes: '' });
