@@ -311,14 +311,12 @@ const TimelineView = ({ s, h }) => {
                                                         <div className="min-w-0">
                                                             <div className="flex items-center gap-1.5 min-w-0">
                                                                 <div className={`w-3 h-3 rounded-full shrink-0 ${pColor.dot}`}></div>
-                                                                <Tooltip text={proj.notes || ''} wrap side='bottom'>
                                                                 <button
                                                                     onClick={() => { setSelectedProjectDetails(proj.id); setActiveTab('setup_proj'); }}
                                                                     className="text-slate-900 font-medium text-left truncate hover:text-gea-700 hover:underline transition-colors"
-                                                                    {...(!proj.notes && { title: 'Projekt-Einstellungen öffnen' })}>
+                                                                    title={proj.notes || undefined}>
                                                                     {projLabel}
                                                                 </button>
-                                                                </Tooltip>
                                                             </div>
                                                             {proj.sharepointLink && (
                                                                 <div className="flex items-center gap-1 mt-1">
