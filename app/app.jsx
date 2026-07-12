@@ -121,7 +121,7 @@ function App() {
     const [empForm, setEmpForm] = useState({ name: '', category: '', weeklyHours: HOURS_PER_WEEK, email: '', role: '', notes: '', booksOnInvoice: false });
     const [editingEmpId, setEditingEmpId] = useState(null);
     const [isEmpFormOpen, setIsEmpFormOpen] = useState(false);
-    const [projForm, setProjForm] = useState({ name: '', category: '', projectNumber: '', kst: '', address: '', country: '', startWeek: '', ibnWeek: '', color: 'gea', hourlyRate: DEFAULT_HOURLY_RATE, billable: true, projType: '', size: '', sharepointLink: '', notes: '' });
+    const [projForm, setProjForm] = useState({ name: '', category: '', projectNumber: '', kst: '', address: '', country: '', startWeek: '', ibnWeek: '', color: 'gea', hourlyRate: DEFAULT_HOURLY_RATE, billable: true, projType: '', size: '', budget: '', sharepointLink: '', notes: '' });
     const [editingProjectId, setEditingProjectId] = useState(null);
 
     // Category Forms
@@ -1963,7 +1963,7 @@ function App() {
     const openNewProjectForm = useCallback(() => {
         const nextColorId = PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id;
         setEditingProjectId(null);
-        setProjForm({ name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', sharepointLink: '', notes: '' });
+        setProjForm({ name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', budget: '', sharepointLink: '', notes: '' });
         setIsProjFormOpen(true);
     }, [projects.length, projCategories, weeks]);
 
@@ -2412,7 +2412,7 @@ function App() {
         const isEditing = !!editingProjectId;
         const emptyForm = () => {
             const nextColorId = PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id;
-            return { name: '', category: projCategories[0] || '', projectNumber: '', kst: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', sharepointLink: '', notes: '' };
+            return { name: '', category: projCategories[0] || '', projectNumber: '', kst: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', budget: '', sharepointLink: '', notes: '' };
         };
         // Inline-Validierung (abgeleitet, kein lokaler State: die Komponente
         // wird inline definiert und remountet bei jedem App-Render).
@@ -2441,11 +2441,15 @@ function App() {
         );
         const save = () => {
             if (!canSave) return;
+            // budget: leeres Feld = kein Budget (null), sonst Zahl – das
+            // Formular hält den Wert als String (kontrollierter Input).
+            const budgetStr = String(projForm.budget ?? '').trim();
+            const payload = { ...projForm, budget: budgetStr === '' ? null : (parseFloat(budgetStr) || 0) };
             if (isEditing) {
-                setProjects(projects.map(p => p.id === editingProjectId ? { ...p, ...projForm } : p));
+                setProjects(projects.map(p => p.id === editingProjectId ? { ...p, ...payload } : p));
                 setEditingProjectId(null);
             } else {
-                setProjects([...projects, { id: makeId('p'), ...projForm, billable: true, hourlyRate: DEFAULT_HOURLY_RATE }]);
+                setProjects([...projects, { id: makeId('p'), ...payload, billable: true, hourlyRate: DEFAULT_HOURLY_RATE }]);
             }
             setProjForm(emptyForm());
             setIsProjFormOpen(false);
@@ -2497,6 +2501,11 @@ function App() {
                             <div>
                                 <label className="block text-xs text-slate-700 mb-1 font-semibold">{t('projForm.size')}</label>
                                 <input type="number" min="0" step="1" value={projForm.size || ''} onChange={e => setProjForm({...projForm, size: e.target.value})} placeholder="z.B. 5" className={fieldCls}/>
+                            </div>
+                            <div className="col-span-2">
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">{t('projForm.budget')}</label>
+                                <input type="number" min="0" step="100" value={projForm.budget ?? ''} onChange={e => setProjForm({...projForm, budget: e.target.value})} placeholder="z.B. 25000" className={fieldCls}/>
+                                <p className="text-[11px] text-slate-400 mt-1">{t('projForm.budgetHint')}</p>
                             </div>
                         </div>
 

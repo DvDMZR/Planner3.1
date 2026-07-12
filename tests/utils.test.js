@@ -211,3 +211,23 @@ test('getInvoiceState: leitet den Rechnungs-Status korrekt ab', () => {
     assert.equal(app.getInvoiceState({ costsSubmitted: true }), 'submitted');
     assert.equal(app.getInvoiceState({ costsSubmitted: true, invoiceStatus: 'exportiert' }), 'submitted');
 });
+
+// ── Projekt-Budget (Soll/Ist-Ampel) ──────────────────────────────────────────
+
+test('budgetUsage: Prozent und Ampel-Level', () => {
+    // Kein/ungültiges/negatives Budget → keine Anzeige
+    assert.equal(app.budgetUsage(null, 500), null);
+    assert.equal(app.budgetUsage('', 500), null);
+    assert.equal(app.budgetUsage(0, 500), null);
+    assert.equal(app.budgetUsage(-100, 500), null);
+    // Schwellen: <80 ok, 80–100 warn, >100 over
+    assert.deepEqual(app.budgetUsage(1000, 500),  { pct: 50,  level: 'ok' });
+    assert.deepEqual(app.budgetUsage(1000, 799),  { pct: 80,  level: 'ok' });   // Level nutzt ungerundete 79,9%
+    assert.deepEqual(app.budgetUsage(1000, 800),  { pct: 80,  level: 'warn' });
+    assert.deepEqual(app.budgetUsage(1000, 1000), { pct: 100, level: 'warn' });
+    assert.deepEqual(app.budgetUsage(1000, 1010), { pct: 101, level: 'over' });
+    // Budget als String (Formular-Altbestand) wird geparst
+    assert.deepEqual(app.budgetUsage('2000', 500), { pct: 25, level: 'ok' });
+    // Fehlende Ist-Kosten zählen als 0
+    assert.deepEqual(app.budgetUsage(1000, undefined), { pct: 0, level: 'ok' });
+});

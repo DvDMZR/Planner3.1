@@ -158,6 +158,7 @@ const SetupProjView = ({
       color: resolveProjectColor(p.color).id,
       projType: p.projType || '',
       size: p.size != null ? String(p.size) : '',
+      budget: p.budget != null ? String(p.budget) : '',
       sharepointLink: p.sharepointLink || '',
       notes: p.notes || ''
     });

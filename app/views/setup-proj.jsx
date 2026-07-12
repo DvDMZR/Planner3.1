@@ -43,7 +43,7 @@ const SetupProjView = ({ s, h }) => {
         }
 
         const handleEditProject = (p) => {
-            setProjForm({ name: p.name, category: p.category || projCategories[0] || '', projectNumber: p.projectNumber || '', kst: p.kst || '', address: p.address || '', country: p.country || '', startWeek: p.startWeek, ibnWeek: p.ibnWeek, color: resolveProjectColor(p.color).id, projType: p.projType || '', size: p.size != null ? String(p.size) : '', sharepointLink: p.sharepointLink || '', notes: p.notes || '' });
+            setProjForm({ name: p.name, category: p.category || projCategories[0] || '', projectNumber: p.projectNumber || '', kst: p.kst || '', address: p.address || '', country: p.country || '', startWeek: p.startWeek, ibnWeek: p.ibnWeek, color: resolveProjectColor(p.color).id, projType: p.projType || '', size: p.size != null ? String(p.size) : '', budget: p.budget != null ? String(p.budget) : '', sharepointLink: p.sharepointLink || '', notes: p.notes || '' });
             setEditingProjectId(p.id);
             setIsProjFormOpen(true);
         };

@@ -507,3 +507,16 @@ const getInvoiceState = (p) => {
     if (p.invoiceStatus) return 'exported';
     return 'open';
 };
+
+// Budget-Auslastung eines Projekts: Ist-Kosten gegen das optionale
+// Soll-Budget. Ohne gepflegtes/positives Budget → null (keine Anzeige).
+// Ampel-Schwellen: <80% ok, 80–100% warn, >100% over.
+const budgetUsage = (budget, actual) => {
+    const b = typeof budget === 'number' ? budget : parseFloat(budget);
+    if (!Number.isFinite(b) || b <= 0) return null;
+    // Level aus dem ungerundeten Verhältnis: 1 € über Budget ist 'over',
+    // auch wenn die Anzeige auf 100% rundet.
+    const raw = ((actual || 0) / b) * 100;
+    const pct = Math.round(raw);
+    return { pct, level: raw > 100 ? 'over' : raw >= 80 ? 'warn' : 'ok' };
+};

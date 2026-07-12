@@ -145,6 +145,7 @@ function App() {
     billable: true,
     projType: '',
     size: '',
+    budget: '',
     sharepointLink: '',
     notes: ''
   });
@@ -2342,6 +2343,7 @@ function App() {
       color: nextColorId,
       projType: '',
       size: '',
+      budget: '',
       sharepointLink: '',
       notes: ''
     });
@@ -2853,6 +2855,7 @@ function App() {
         color: nextColorId,
         projType: '',
         size: '',
+        budget: '',
         sharepointLink: '',
         notes: ''
       };
@@ -2883,16 +2886,23 @@ function App() {
     }, txt);
     const save = () => {
       if (!canSave) return;
+      // budget: leeres Feld = kein Budget (null), sonst Zahl – das
+      // Formular hält den Wert als String (kontrollierter Input).
+      const budgetStr = String(projForm.budget ?? '').trim();
+      const payload = {
+        ...projForm,
+        budget: budgetStr === '' ? null : parseFloat(budgetStr) || 0
+      };
       if (isEditing) {
         setProjects(projects.map(p => p.id === editingProjectId ? {
           ...p,
-          ...projForm
+          ...payload
         } : p));
         setEditingProjectId(null);
       } else {
         setProjects([...projects, {
           id: makeId('p'),
-          ...projForm,
+          ...payload,
           billable: true,
           hourlyRate: DEFAULT_HOURLY_RATE
         }]);
@@ -2999,7 +3009,24 @@ function App() {
       }),
       placeholder: "z.B. 5",
       className: fieldCls
-    }))), sectionTitle(t('projForm.secPeriod')), /*#__PURE__*/React.createElement("div", {
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "col-span-2"
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "block text-xs text-slate-700 mb-1 font-semibold"
+    }, t('projForm.budget')), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: "0",
+      step: "100",
+      value: projForm.budget ?? '',
+      onChange: e => setProjForm({
+        ...projForm,
+        budget: e.target.value
+      }),
+      placeholder: "z.B. 25000",
+      className: fieldCls
+    }), /*#__PURE__*/React.createElement("p", {
+      className: "text-[11px] text-slate-400 mt-1"
+    }, t('projForm.budgetHint')))), sectionTitle(t('projForm.secPeriod')), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-2 gap-4"
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
       className: "block text-xs text-slate-700 mb-1 font-semibold"

@@ -333,14 +333,16 @@ const OverviewView = ({
     className: "p-4 text-gea-800 font-semibold text-right"
   }, t('overview.colExtra')), /*#__PURE__*/React.createElement("th", {
     className: "p-4 text-gea-800 font-semibold text-right"
-  }, t('overview.colTotal')))), /*#__PURE__*/React.createElement("tbody", {
+  }, t('overview.colTotal')), /*#__PURE__*/React.createElement("th", {
+    className: "p-4 text-gea-800 font-semibold text-right whitespace-nowrap"
+  }, t('overview.colBudget')))), /*#__PURE__*/React.createElement("tbody", {
     className: "divide-y divide-slate-200"
   }, groupedRows.map(([cat, catRows]) => /*#__PURE__*/React.createElement(React.Fragment, {
     key: cat
   }, /*#__PURE__*/React.createElement("tr", {
     className: "bg-slate-50 border-y border-slate-200"
   }, /*#__PURE__*/React.createElement("td", {
-    colSpan: 8,
+    colSpan: 9,
     className: "px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider"
   }, cat || t('overview.noCategory'))), catRows.map(({
     p,
@@ -395,9 +397,21 @@ const OverviewView = ({
       className: "p-4 text-right font-semibold text-slate-900 tabular-nums"
     }, gesamtkosten > 0 ? `${fmt(gesamtkosten)} €` : /*#__PURE__*/React.createElement("span", {
       className: "text-slate-400 font-normal"
-    }, "\u2013")));
+    }, "\u2013")), /*#__PURE__*/React.createElement("td", {
+      className: "p-4 text-right tabular-nums"
+    }, (() => {
+      const bu = budgetUsage(p.budget, gesamtkosten);
+      if (!bu) return /*#__PURE__*/React.createElement("span", {
+        className: "text-slate-400"
+      }, "\u2013");
+      const cls = bu.level === 'over' ? 'bg-rose-50 text-rose-700 border-rose-200' : bu.level === 'warn' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      return /*#__PURE__*/React.createElement("span", {
+        className: `text-xs px-1.5 py-0.5 rounded border font-semibold ${cls}`,
+        title: `${fmt(gesamtkosten)} € / ${fmt(p.budget)} €`
+      }, bu.pct, "%");
+    })()));
   }))), rows.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
-    colSpan: 8,
+    colSpan: 9,
     className: "p-0"
   }, /*#__PURE__*/React.createElement(EmptyState, {
     icon: /*#__PURE__*/React.createElement(IconBriefcase, {
@@ -425,5 +439,14 @@ const OverviewView = ({
     className: "p-4 text-right font-semibold text-slate-900 tabular-nums"
   }, fmt(rows.reduce((a, r) => a + r.zusatzkosten, 0)), " \u20AC"), /*#__PURE__*/React.createElement("td", {
     className: "p-4 text-right font-bold text-gea-700 tabular-nums"
-  }, fmt(totalGesamtkosten), " \u20AC")))))));
+  }, fmt(totalGesamtkosten), " \u20AC"), /*#__PURE__*/React.createElement("td", {
+    className: "p-4 text-right font-semibold text-slate-900 tabular-nums"
+  }, (() => {
+    const withBudget = rows.filter(r => budgetUsage(r.p.budget, r.gesamtkosten));
+    if (withBudget.length === 0) return /*#__PURE__*/React.createElement("span", {
+      className: "text-slate-400 font-normal"
+    }, "\u2013");
+    const sumBudget = withBudget.reduce((a, r) => a + Number(r.p.budget), 0);
+    return `${fmt(sumBudget)} €`;
+  })())))))));
 };

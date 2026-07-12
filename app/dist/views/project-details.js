@@ -269,6 +269,7 @@ const ProjectDetailsView = ({
         color: resolveProjectColor(proj.color).id,
         projType: proj.projType || '',
         size: proj.size != null ? String(proj.size) : '',
+        budget: proj.budget != null ? String(proj.budget) : '',
         sharepointLink: proj.sharepointLink || '',
         notes: proj.notes || ''
       });
@@ -508,7 +509,34 @@ const ProjectDetailsView = ({
     className: "text-[10px] text-gea-700 font-medium uppercase tracking-wide"
   }, t('projDetail.total'))), /*#__PURE__*/React.createElement("p", {
     className: "text-2xl text-gea-800 font-bold tabular-nums"
-  }, grandTotal.toFixed(2), " \u20AC"))), /*#__PURE__*/React.createElement("div", {
+  }, grandTotal.toFixed(2), " \u20AC"))), (() => {
+    const bu = budgetUsage(proj.budget, grandTotal);
+    if (!bu) return null;
+    const barColor = bu.level === 'over' ? 'bg-rose-500' : bu.level === 'warn' ? 'bg-amber-500' : 'bg-emerald-500';
+    const txtColor = bu.level === 'over' ? 'text-rose-600' : bu.level === 'warn' ? 'text-amber-600' : 'text-emerald-600';
+    return /*#__PURE__*/React.createElement("div", {
+      className: "px-6 pb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between text-sm mb-1.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-slate-500 font-medium"
+    }, t('budget.label')), /*#__PURE__*/React.createElement("span", {
+      className: "tabular-nums text-slate-700"
+    }, grandTotal.toFixed(2), " \u20AC / ", Number(proj.budget).toFixed(2), " \u20AC", /*#__PURE__*/React.createElement("span", {
+      className: `ml-2 font-semibold ${txtColor}`
+    }, bu.pct, "%"))), /*#__PURE__*/React.createElement("div", {
+      className: "w-full h-2 rounded-full bg-slate-100 overflow-hidden"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: `h-full ${barColor} transition-all`,
+      style: {
+        width: `${Math.min(100, bu.pct)}%`
+      }
+    })), bu.level === 'over' && /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-rose-600 mt-1"
+    }, t('budget.overHint', {
+      amount: (grandTotal - Number(proj.budget)).toFixed(2)
+    })));
+  })(), /*#__PURE__*/React.createElement("div", {
     className: "px-6 pb-5 pt-1 flex items-center gap-4 border-t border-slate-100"
   }, /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 cursor-pointer select-none"

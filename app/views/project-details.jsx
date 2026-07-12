@@ -120,7 +120,7 @@ const ProjectDetailsView = ({ s, h }) => {
                             <span className="text-sm font-medium text-slate-700">{t('projDetail.costsSubmitted')}</span>
                         </label>
                         <button onClick={() => {
-                            setProjForm({ name: proj.name, category: proj.category || projCategories[0] || '', projectNumber: proj.projectNumber || '', address: proj.address || '', country: proj.country || '', startWeek: proj.startWeek, ibnWeek: proj.ibnWeek, color: resolveProjectColor(proj.color).id, projType: proj.projType || '', size: proj.size != null ? String(proj.size) : '', sharepointLink: proj.sharepointLink || '', notes: proj.notes || '' });
+                            setProjForm({ name: proj.name, category: proj.category || projCategories[0] || '', projectNumber: proj.projectNumber || '', address: proj.address || '', country: proj.country || '', startWeek: proj.startWeek, ibnWeek: proj.ibnWeek, color: resolveProjectColor(proj.color).id, projType: proj.projType || '', size: proj.size != null ? String(proj.size) : '', budget: proj.budget != null ? String(proj.budget) : '', sharepointLink: proj.sharepointLink || '', notes: proj.notes || '' });
                             setEditingProjectId(proj.id);
                             setIsProjFormOpen(true);
                         }} className="bg-white border border-slate-300 hover:bg-gea-50 hover:border-gea-400 text-slate-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors">
@@ -312,6 +312,31 @@ const ProjectDetailsView = ({ s, h }) => {
                                 <p className="text-2xl text-gea-800 font-bold tabular-nums">{grandTotal.toFixed(2)} €</p>
                             </div>
                         </div>
+                        {(() => {
+                            const bu = budgetUsage(proj.budget, grandTotal);
+                            if (!bu) return null;
+                            const barColor = bu.level === 'over' ? 'bg-rose-500' : bu.level === 'warn' ? 'bg-amber-500' : 'bg-emerald-500';
+                            const txtColor = bu.level === 'over' ? 'text-rose-600' : bu.level === 'warn' ? 'text-amber-600' : 'text-emerald-600';
+                            return (
+                                <div className="px-6 pb-4">
+                                    <div className="flex items-center justify-between text-sm mb-1.5">
+                                        <span className="text-slate-500 font-medium">{t('budget.label')}</span>
+                                        <span className="tabular-nums text-slate-700">
+                                            {grandTotal.toFixed(2)} € / {Number(proj.budget).toFixed(2)} €
+                                            <span className={`ml-2 font-semibold ${txtColor}`}>{bu.pct}%</span>
+                                        </span>
+                                    </div>
+                                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                                        <div className={`h-full ${barColor} transition-all`} style={{ width: `${Math.min(100, bu.pct)}%` }}></div>
+                                    </div>
+                                    {bu.level === 'over' && (
+                                        <p className="text-xs text-rose-600 mt-1">
+                                            {t('budget.overHint', { amount: (grandTotal - Number(proj.budget)).toFixed(2) })}
+                                        </p>
+                                    )}
+                                </div>
+                            );
+                        })()}
                         <div className="px-6 pb-5 pt-1 flex items-center gap-4 border-t border-slate-100">
                             <label className="flex items-center gap-2 cursor-pointer select-none">
                                 <input type="checkbox" checked={proj.billable !== false}
