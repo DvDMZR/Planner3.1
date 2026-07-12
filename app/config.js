@@ -773,6 +773,9 @@ const HOURS_PER_WEEK = 40;
 const WEEKS_IN_YEAR = 52;
 const BASIC_TASK_EXPIRY_WEEKS = 12;
 const DEFAULT_WEEKS_AHEAD = 52;
+// Fälligkeiten-Widget (Übersicht): ab so vielen Wochen gilt ein nicht
+// übermittelter Reisekosten-Posten bzw. eine überfällige IBN als "fällig".
+const TODO_AGE_WEEKS = 4;
 
 // Login lockout: lock the login form after this many failed attempts.
 const LOGIN_LOCK_THRESHOLD = 5;

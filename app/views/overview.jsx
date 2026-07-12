@@ -67,6 +67,26 @@ const OverviewView = ({ s, h }) => {
             setTimeout(() => scrollToWeekById(resourceScrollRef, timelineWeeks, week, 140), 120);
         };
 
+        // Fälligkeiten: abgeleitete Aufgaben (fehlende Kosten, alte
+        // Reisekosten, überfällige IBN) – Logik in app/todos.js.
+        const [todosCollapsed, setTodosCollapsed] = React.useState(false);
+        const todos = React.useMemo(() => buildTodos({
+            projects, computeAutoStatus, costItems, employees,
+            currentWeek: currentWeekStr,
+        }), [projects, computeAutoStatus, costItems, employees, currentWeekStr]);
+        const todoLabel = (td) => {
+            switch (td.kind) {
+                case 'missing_costs': return t('todos.missingCosts', { name: td.name });
+                case 'overdue_ibn':   return t('todos.overdueIbn', { name: td.name, week: formatKW(td.week) });
+                default:              return t('todos.staleTravel', { emp: td.empName, amount: td.amount.toFixed(2), week: formatKW(td.week) });
+            }
+        };
+        const todoJump = (td) => {
+            if (td.kind === 'stale_travel') { setActiveTab('travel'); return; }
+            setSelectedProjectDetails(td.projectId);
+            setActiveTab('setup_proj');
+        };
+
         const rows = React.useMemo(() => projects.filter(p => ['active', 'planned'].includes(computeAutoStatus(p))).map(p => {
             const projAss = assignmentsByProject.get(p.id) || [];
             let totalHours = 0, totalLaborCost = 0;
@@ -130,6 +150,37 @@ const OverviewView = ({ s, h }) => {
                             <p className={`text-3xl font-bold mt-1 ${overbookedCount > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{overbookedCount}</p>
                             <p className="text-xs text-slate-500 mt-1">{overbookedCount > 0 ? t('overview.overloadedCount') : t('overview.allOk')}</p>
                         </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden">
+                        <button onClick={() => setTodosCollapsed(c => !c)}
+                            className="w-full px-5 py-4 flex items-center gap-2 text-left hover:bg-slate-50 transition-colors">
+                            <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('todos.title')}</p>
+                            {todos.length > 0 ? (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold tabular-nums">{todos.length}</span>
+                            ) : (
+                                <span className="text-xs text-emerald-600 font-medium">✓ {t('todos.allDone')}</span>
+                            )}
+                            <span className="ml-auto text-slate-400 text-xs">{todosCollapsed ? '▸' : '▾'}</span>
+                        </button>
+                        {!todosCollapsed && todos.length > 0 && (
+                            <div className="border-t border-slate-100 divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                                {todos.map((td, i) => {
+                                    const dot = td.kind === 'missing_costs' ? 'bg-rose-500'
+                                              : td.kind === 'stale_travel'  ? 'bg-amber-500'
+                                              :                               'bg-sky-500';
+                                    return (
+                                        <button key={`${td.kind}-${td.projectId || td.costItemId || i}`}
+                                            onClick={() => todoJump(td)}
+                                            className="w-full flex items-center gap-2.5 px-5 py-2.5 text-sm text-left text-slate-700 hover:bg-gea-50/50 transition-colors">
+                                            <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`}/>
+                                            <span className="flex-1 min-w-0 truncate">{todoLabel(td)}</span>
+                                            <span className="text-slate-400 text-xs shrink-0">→</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     <div className="bg-white border border-slate-300 rounded-xl p-5 shadow-md">
