@@ -8,9 +8,10 @@ const DataView = ({ s, h }) => {
             invoiceRecipient, accountingRecipient, employees, empAliases, t } = s;
     const { setAppUsers, loginUser, setAutoBackup, runBackup, setEmailTemplate,
             setInvoiceRecipient, setAccountingRecipient, exportData, importData, showToast, requestConfirm,
-            setEmpAliases } = h;
+            setEmpAliases, logAudit } = h;
 
     const isAdmin = currentUser?.role === 'admin';
+    const adminCount = appUsers.filter(u => u.role === 'admin').length;
 
     // ── User-Edit-State ──
     const [newName, setNewName] = useState('');
@@ -122,6 +123,34 @@ const DataView = ({ s, h }) => {
         ? (user.role !== 'admin' || user.id === currentUser.id) // Admin darf sich selbst und Nicht-Admins bearbeiten
         : user.id === currentUser.id;
 
+    // Rollenverwaltung: gleiche Grenze wie canEdit – ein Admin befördert
+    // Nicht-Admins und kann nur SICH SELBST die Admin-Rolle entziehen
+    // (fremde Admins bleiben unantastbar). Der letzte Admin kann nicht
+    // herabgestuft werden, sonst wäre die Benutzerverwaltung ausgesperrt.
+    const canChangeRole = (user) => isAdmin
+        && (user.role !== 'admin' || user.id === currentUser.id);
+    const handleRoleChange = (user) => {
+        const promote = user.role !== 'admin';
+        if (!promote && adminCount <= 1) return; // Guard: letzter Admin
+        requestConfirm({
+            title: promote ? t('data.rolePromoteTitle') : t('data.roleDemoteTitle'),
+            message: promote
+                ? t('data.rolePromoteMsg', { name: user.name })
+                : t('data.roleDemoteSelfMsg'),
+            confirmLabel: promote ? t('data.rolePromoteBtn') : t('data.roleDemoteBtn'),
+            danger: !promote,
+            onConfirm: () => {
+                const updated = { ...user, role: promote ? 'admin' : 'active' };
+                setAppUsers(prev => prev.map(u => u.id === user.id ? updated : u));
+                if (currentUser.id === user.id) loginUser(updated);
+                logAudit('user_role_change',
+                    promote ? `Admin-Rechte vergeben an: ${user.name}`
+                            : `Admin-Rechte entzogen: ${user.name}`);
+                showSuccess(t('data.roleChanged', { name: user.name }));
+            }
+        });
+    };
+
     const section = (title, body) => (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
@@ -214,6 +243,21 @@ const DataView = ({ s, h }) => {
                                             </div>
                                             {canEdit(user) && (
                                                 <div className="flex items-center gap-1 shrink-0">
+                                                    {canChangeRole(user) && (
+                                                        user.role === 'admin' ? (
+                                                            <button onClick={() => handleRoleChange(user)}
+                                                                disabled={adminCount <= 1}
+                                                                title={adminCount <= 1 ? t('data.roleLastAdminHint') : undefined}
+                                                                className="px-2.5 py-1.5 text-xs rounded text-amber-600 hover:bg-amber-50 hover:text-amber-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+                                                                {t('data.roleDemoteBtn')}
+                                                            </button>
+                                                        ) : (
+                                                            <button onClick={() => handleRoleChange(user)}
+                                                                className="px-2.5 py-1.5 text-xs rounded text-gea-600 hover:bg-gea-50 hover:text-gea-700 transition-colors">
+                                                                {t('data.rolePromoteBtn')}
+                                                            </button>
+                                                        )
+                                                    )}
                                                     <button onClick={() => startEdit(user)} className="px-2.5 py-1.5 text-xs rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors">
                                                         {isAdmin ? t('btn.edit') : t('btn.changePin')}
                                                     </button>

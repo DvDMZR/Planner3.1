@@ -33,9 +33,11 @@ const DataView = ({
     importData,
     showToast,
     requestConfirm,
-    setEmpAliases
+    setEmpAliases,
+    logAudit
   } = h;
   const isAdmin = currentUser?.role === 'admin';
+  const adminCount = appUsers.filter(u => u.role === 'admin').length;
 
   // ── User-Edit-State ──
   const [newName, setNewName] = useState('');
@@ -196,6 +198,36 @@ const DataView = ({
   };
   const canEdit = user => isAdmin ? user.role !== 'admin' || user.id === currentUser.id // Admin darf sich selbst und Nicht-Admins bearbeiten
   : user.id === currentUser.id;
+
+  // Rollenverwaltung: gleiche Grenze wie canEdit – ein Admin befördert
+  // Nicht-Admins und kann nur SICH SELBST die Admin-Rolle entziehen
+  // (fremde Admins bleiben unantastbar). Der letzte Admin kann nicht
+  // herabgestuft werden, sonst wäre die Benutzerverwaltung ausgesperrt.
+  const canChangeRole = user => isAdmin && (user.role !== 'admin' || user.id === currentUser.id);
+  const handleRoleChange = user => {
+    const promote = user.role !== 'admin';
+    if (!promote && adminCount <= 1) return; // Guard: letzter Admin
+    requestConfirm({
+      title: promote ? t('data.rolePromoteTitle') : t('data.roleDemoteTitle'),
+      message: promote ? t('data.rolePromoteMsg', {
+        name: user.name
+      }) : t('data.roleDemoteSelfMsg'),
+      confirmLabel: promote ? t('data.rolePromoteBtn') : t('data.roleDemoteBtn'),
+      danger: !promote,
+      onConfirm: () => {
+        const updated = {
+          ...user,
+          role: promote ? 'admin' : 'active'
+        };
+        setAppUsers(prev => prev.map(u => u.id === user.id ? updated : u));
+        if (currentUser.id === user.id) loginUser(updated);
+        logAudit('user_role_change', promote ? `Admin-Rechte vergeben an: ${user.name}` : `Admin-Rechte entzogen: ${user.name}`);
+        showSuccess(t('data.roleChanged', {
+          name: user.name
+        }));
+      }
+    });
+  };
   const section = (title, body) => /*#__PURE__*/React.createElement("div", {
     className: "bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
   }, /*#__PURE__*/React.createElement("div", {
@@ -292,7 +324,15 @@ const DataView = ({
     className: "text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium shrink-0"
   }, t('data.roleMe')))), canEdit(user) && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-1 shrink-0"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, canChangeRole(user) && (user.role === 'admin' ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => handleRoleChange(user),
+    disabled: adminCount <= 1,
+    title: adminCount <= 1 ? t('data.roleLastAdminHint') : undefined,
+    className: "px-2.5 py-1.5 text-xs rounded text-amber-600 hover:bg-amber-50 hover:text-amber-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+  }, t('data.roleDemoteBtn')) : /*#__PURE__*/React.createElement("button", {
+    onClick: () => handleRoleChange(user),
+    className: "px-2.5 py-1.5 text-xs rounded text-gea-600 hover:bg-gea-50 hover:text-gea-700 transition-colors"
+  }, t('data.rolePromoteBtn'))), /*#__PURE__*/React.createElement("button", {
     onClick: () => startEdit(user),
     className: "px-2.5 py-1.5 text-xs rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
   }, isAdmin ? t('btn.edit') : t('btn.changePin')), isAdmin && /*#__PURE__*/React.createElement("button", {
