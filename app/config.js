@@ -1,5 +1,5 @@
 // ─── TEAM-SPLIT FILE LAYOUT ───────────────────────────────────────────────────
-const APP_VERSION = 'v0.92';
+const APP_VERSION = 'v0.93';
 const DEFAULT_TEAMS = ['AS', 'CMS', 'CSS', 'HM', 'I&C', 'Other'];
 const PLANNER_DATA_DIR = 'planner-data';
 const SCHEMA_VERSION = 4;
@@ -77,6 +77,51 @@ const ensureAdmin = async (users) => {
 
 // --- CHANGELOG ---
 const CHANGELOG_CONTENT = `# Changelog
+
+## v0.93 (2026-07-12)
+
+### Bugfix: SharePoint-Sync konnte minutenlang "einschlafen"
+- Änderungen von Kollegen erschienen teilweise erst nach vielen Minuten: Der
+  Sync-Status konnte in Übergangszuständen ("Speichert ...", "Sitzung
+  erneuern ...") hängen bleiben – ein interner Schutz überspringt in diesen
+  Zuständen jeden Abgleich, wodurch das Polling dauerhaft stoppte. Behoben:
+  Fehler bei der Session-Erneuerung führen jetzt sauber zu "Offline – lokal"
+  (heilt sich beim nächsten erfolgreichen Abgleich selbst), hängende
+  Netzwerk-Requests laufen nach 30 s in einen Timeout, und ein Watchdog löst
+  festgefahrene Zustände nach 45 s automatisch auf.
+- Wiederholte Sync-Konflikte erforderten bisher einen Seiten-Reload; jetzt
+  wird der Server-Stand automatisch übernommen und es geht normal weiter.
+- Abgelaufene Sitzungen versuchen sich bei Rückkehr in den Tab still zu
+  erneuern, statt auf den Klick auf "neu verbinden" zu warten.
+
+### Sync-Statusanzeige geschärft
+- Die Anzeige unten links zeigte in unbekannten Zuständen fälschlich
+  "Verbindet ..." (z. B. nach wiederholten Sync-Konflikten). Jeder Zustand
+  hat jetzt einen eigenen Text; der Tooltip zeigt "Zuletzt synchronisiert:
+  HH:MM" und macht damit sichtbar, ob der Abgleich wirklich läuft.
+
+### Neue Funktionen
+- **Admin-Rollenverwaltung** (System & Export): Nutzer können zum Admin
+  befördert werden, Admins können sich selbst die Rechte entziehen (mit
+  Bestätigung). Der letzte Admin ist geschützt; Änderungen landen im Verlauf.
+- **Rechnungs-Status sichtbar**: Projekte zeigen jetzt "Rechnung offen /
+  exportiert" als Chip (Projektdetails, Projektliste, Kacheln). CSV-Export
+  UND E-Mail-Versand markieren das Projekt als exportiert (mit Datum im
+  Tooltip); "Kosten eingereicht" bleibt der manuelle Endzustand.
+- **Projekt-Budgets**: optionales Soll-Budget je Projekt (Projektformular).
+  Projektdetails zeigen einen Budget-Balken mit Ampel (<80 % grün, 80–100 %
+  gelb, darüber rot inkl. Überschreitungsbetrag), die Übersicht eine
+  Budget-Spalte mit Prozent-Badge und Budget-Summe.
+- **Urlaubskonto**: optionaler Jahresanspruch (Tage) je Mitarbeiter. Die
+  Abwesenheits-Ansicht zeigt je Mitarbeiter "verbraucht/Anspruch" für das
+  gewählte Jahr; eine Urlaubswoche zählt 5 Arbeitstage abzüglich Feiertage.
+- **Fälligkeiten-Widget** in der Übersicht: fehlende Kosten nach IBN, seit
+  über 4 Wochen nicht übermittelte Reisekosten und überfällige, nicht
+  abgeschlossene Projekte – klickbar, komplett aus vorhandenen Daten
+  abgeleitet.
+- **CSV-Export überall**: Übersicht, Auslastung, Projektdetails (Anwesenheit
+  + Kostenpunkte), Reisekosten (gefilterte Posten) und Verlauf lassen sich
+  jetzt als Excel-kompatible CSV exportieren.
 
 ## v0.92 (2026-07-09)
 

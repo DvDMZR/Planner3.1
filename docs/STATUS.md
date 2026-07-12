@@ -5,7 +5,7 @@ bewusst zurückgestellt und warum. Ersetzt die vormals getrennten Dateien
 `CODE_REVIEW.md`, `docs/SECURITY.md` und `docs/SYNC-OPTIMIERUNG.md` (deren Inhalt
 ist hier eingearbeitet und aktualisiert).
 
-Stand: 2026-07-06, App-Version v0.91.
+Stand: 2026-07-12, App-Version v0.93.
 
 ---
 
@@ -123,6 +123,18 @@ Analyse vom 2026-07-02, weiterhin gültig für v0.91 (an der Sync-Architektur
 hat sich seither nichts geändert).
 
 ### Umgesetzt
+- **Fix Sync-Status-Deadlocks (2026-07-12, v0.93):** Drei Ursachen dafür,
+  dass Kollegen-Änderungen teils erst nach Minuten erschienen: (1) Die
+  Recovery-Pfade (Poll/Save/Load) ließen bei Nicht-Auth-Fehlern aus
+  `spEnsureSession` den Status dauerhaft auf `reconnecting` stehen — das
+  Poll-Gate stoppte damit jedes weitere Polling. Jetzt try/catch → `offline`
+  (selbstheilend). (2) `spFetch` ohne Timeout: hängende Requests hielten
+  `syncing` fest → 30-s-AbortController. (3) `conflict-loop` war terminal
+  und der Sidebar unbekannt (zeigte den „Verbindet ..."-Fallback) → lädt
+  jetzt den Server-Stand und läuft weiter; Sidebar hat eine explizite
+  Status-Map + „Zuletzt synchronisiert"-Tooltip. Zusätzlich: Watchdog setzt
+  festgefahrene Transient-Status nach 45 s auf `offline` zurück; `needs-auth`
+  versucht bei Tab-Rückkehr eine stille Session-Erneuerung.
 - **Fix Datenverlust beim selektiven Team-Merge (2026-07-08):** Der Poll-Merge
   entfernte bei einer remote geänderten Team-Datei die lokalen Einträge des
   Teams anhand der VEREINIGUNG der geänderten Teams – änderte sich z. B. nur
@@ -165,6 +177,34 @@ sehr hoher Edit-Frequenz zuerst Pre-Save-Freshness-Check nachrüsten, danach
 ---
 
 ## 4. UX/UI
+
+### Umgesetzt (2026-07-12, v0.93 — vom Nutzer aus dem Funktionskatalog ausgewählt)
+- **Admin-Rollenverwaltung** in System & Export (Befördern, Selbst-Degradierung
+  mit Bestätigung, Letzter-Admin-Guard, Audit-Eintrag).
+- **Rechnungs-Status-Chip** (offen → exportiert → Kosten eingereicht), abgeleitet
+  via `getInvoiceState` (`app/utils.js`); CSV-Export und E-Mail-Versand setzen
+  `invoiceStatus`/`invoiceExportedAt`.
+- **Projekt-Budgets** (`project.budget`): Soll-Ist-Balken in den Projektdetails,
+  Budget-Spalte in der Übersicht (`budgetUsage` in `app/utils.js`).
+- **Urlaubskonto** (`employee.vacationDays`): Saldo-Badge in der
+  Abwesenheits-Ansicht (`computeVacationDays` in `app/utils.js`; Woche = 5
+  Arbeitstage − Feiertage, bewusst ohne Teilzeit-Faktor).
+- **Fälligkeiten-Widget** in der Übersicht (`app/todos.js` + Tests; Konstante
+  `TODO_AGE_WEEKS` in `config.js`).
+- **CSV-Export** in Übersicht, Auslastung, Projektdetails, Reisekosten, Verlauf
+  (`buildCsv` in `app/utils.js`, `downloadCsv`-Handler in `app.jsx`).
+
+### Ideen-Backlog aus dem Funktionskatalog (2026-07-12, noch nicht beauftragt)
+- Jahres-/Management-Report über ALLE Projekte (inkl. abgeschlossener),
+  Aggregation nach Jahr/Typ/Größe/Land; Reisekosten-Auswertung pro Mitarbeiter.
+- Druck-/PDF-Berichte (Projektbericht, Settlement).
+- Feiertags-korrigierte Kapazität (Feiertage senken die Soll-Stunden in der
+  Auslastung); Frei-Kapazitäten-Finder („wer hat in KW X–Y Luft?").
+- Urlaubs-Genehmigungsworkflow (größter Aufwand: neue globale Datei).
+- Spesen-Import per Datei-Upload; ERP-Detailfelder (vendor/location/…)
+  mit persistieren.
+- Timeline-Suche/-Filter, Suche in der Trainings-View, Bulk-Aktionen,
+  Projekt-Duplizieren, Mitarbeiter-Löschen-UI in der Mitarbeiterverwaltung.
 
 ### Umgesetzt (2026-07-06, aus der Vorschlagsliste ausgewählt)
 - **Card-Grid für die Projektverwaltung**: Umschalter Tabelle/Kacheln in
