@@ -41,7 +41,8 @@ const TravelCostsView = ({
     handleSaveAssignment,
     showToast,
     requestConfirm,
-    logAudit
+    logAudit,
+    downloadCsv
   } = h;
   const [teamFilter, setTeamFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -397,6 +398,16 @@ const TravelCostsView = ({
   }, t('travel.subtitle'))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap"
   }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      // Exportiert die aktuell gefilterten Posten (alle Team-Karten).
+      const rowsCsv = [['Team', t('cats.kst'), t('travel.colEmployee'), t('travel.colProject'), t('travel.colReportKey'), 'KW/Datum', t('travel.colAmount'), t('travel.colStatus'), t('travel.colTarget')]];
+      groups.forEach(g => sortItems(g.items).forEach(ci => {
+        rowsCsv.push([g.team, g.kst || '', employeeById.get(ci.empId)?.name || '', ci.projectId ? projectById.get(ci.projectId)?.name || '' : '', ci.reportKey || '', ci.dateFrom || ci.week || '', fmt2(settlementAmount(ci)), statusLabel(getSettlementStatus(ci)), ci.targetAccount || '']);
+      }));
+      downloadCsv(`Reisekosten_${new Date().toISOString().slice(0, 10)}.csv`, rowsCsv);
+    },
+    className: "px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-md hover:bg-gea-50 hover:border-gea-400 text-slate-700 flex items-center gap-2"
+  }, t('btn.exportCsv')), /*#__PURE__*/React.createElement("button", {
     onClick: () => setIsImportOpen(true),
     className: "px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-md hover:bg-gea-50 hover:border-gea-400 text-slate-700 flex items-center gap-2"
   }, /*#__PURE__*/React.createElement(IconUpload, {

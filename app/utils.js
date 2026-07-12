@@ -508,6 +508,14 @@ const getInvoiceState = (p) => {
     return 'open';
 };
 
+// CSV-Builder (Excel-kompatibel, wie der Rechnungs-Export): BOM für
+// Umlaute, ';' als Trenner (deutsches Excel), alle Zellen gequotet,
+// '"' verdoppelt. rows = Array von Zeilen-Arrays; null/undefined → leer.
+const buildCsv = (rows) =>
+    '\uFEFF' + (rows || []).map(r =>
+        (r || []).map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')
+    ).join('\n');
+
 // Urlaubsverbrauch eines Mitarbeiters in einem Kalenderjahr, in Tagen.
 // Die Planung ist wochenbasiert: eine geplante 'Vacation'-Woche zählt als
 // 5 Arbeitstage abzüglich der deutschen Feiertage, die in dieser Woche auf

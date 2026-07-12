@@ -35,6 +35,7 @@ const UtilizationView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
+        downloadCsv,
         scrollToCurrentWeek } = h;
         const visibleWeeks = React.useMemo(
             () => weeks.slice(0, weeksAhead),
@@ -119,6 +120,21 @@ const UtilizationView = ({ s, h }) => {
                         <p className="text-sm text-slate-500">{t('util.subtitle')}</p>
                     </div>
                     <div className="flex gap-3 items-center">
+                    <button onClick={() => {
+                        const rowsCsv = [[t('resource.colEmployee'), 'Team', 'Ø', ...months]];
+                        activeCategories.forEach(category => {
+                            (activeEmpsByCategory.get(category) || []).filter(matchesEmpSearch).forEach(emp => {
+                                const u = utilByEmp.get(emp.id);
+                                if (!u) return;
+                                rowsCsv.push([emp.name, category, `${u.avgAll}%`,
+                                    ...months.map(m => u.monthAvgs[m] ? `${u.monthAvgs[m].avg}%` : '')]);
+                            });
+                        });
+                        downloadCsv(`Auslastung_${new Date().toISOString().slice(0,10)}.csv`, rowsCsv);
+                    }}
+                        className="text-xs px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-slate-600 hover:border-gea-400 hover:text-gea-600 transition-colors font-medium shrink-0">
+                        {t('btn.exportCsv')}
+                    </button>
                     <div className="relative">
                         <IconUsers size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
                         <input type="text" value={empSearch}

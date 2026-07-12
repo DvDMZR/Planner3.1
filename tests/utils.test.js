@@ -269,3 +269,22 @@ test('computeVacationDays: Weihnachtswoche, Duplikate, Randfälle', () => {
     assert.equal(app.computeVacationDays([], 'e1', 2026), 0);
     assert.equal(app.computeVacationDays(null, 'e1', 2026), 0);
 });
+
+// ── CSV-Builder ──────────────────────────────────────────────────────────────
+
+test('buildCsv: BOM, Semikolon-Trenner, Quoting und Escaping', () => {
+    const csv = app.buildCsv([
+        ['Name', 'Betrag'],
+        ['Müller; GmbH', 12.5],
+        ['Zitat "hier"', null],
+    ]);
+    assert.ok(csv.startsWith('﻿'), 'beginnt mit BOM');
+    const lines = csv.slice(1).split('\n');
+    assert.equal(lines[0], '"Name";"Betrag"');
+    assert.equal(lines[1], '"Müller; GmbH";"12.5"');
+    // '"' wird verdoppelt, null wird zur leeren Zelle
+    assert.equal(lines[2], '"Zitat ""hier""";""');
+    // Leere Eingaben crashen nicht
+    assert.equal(app.buildCsv([]), '﻿');
+    assert.equal(app.buildCsv(null), '﻿');
+});

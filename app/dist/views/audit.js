@@ -18,7 +18,8 @@ const AuditView = ({
     setEmployees,
     setProjects,
     setCostItems,
-    setAuditLog
+    setAuditLog,
+    downloadCsv
   } = h;
   const [filter, setFilter] = useState('all'); // 'all' | '7d' | '24h'
   const [undoConfirm, setUndoConfirm] = useState(null); // id of entry being confirmed
@@ -153,7 +154,14 @@ const AuditView = ({
     className: "text-sm text-slate-500"
   }, t('audit.subtitle'))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 shrink-0"
-  }, [['all', t('audit.filterAll')], ['7d', t('audit.filter7d')], ['24h', t('audit.filter24h')]].map(([val, label]) => /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      const rowsCsv = [[t('audit.colTime'), t('audit.colUser'), t('audit.colAction'), t('audit.colDesc')]];
+      filtered.forEach(e => rowsCsv.push([new Date(e.timestamp).toLocaleString('de-DE'), e.userName || '', e.action || '', e.description || '']));
+      downloadCsv(`Verlauf_${new Date().toISOString().slice(0, 10)}.csv`, rowsCsv);
+    },
+    className: "px-3 py-1.5 text-xs rounded-lg font-medium bg-white border border-slate-300 text-slate-600 hover:border-gea-400 hover:text-gea-600 transition-colors mr-2"
+  }, t('btn.exportCsv')), [['all', t('audit.filterAll')], ['7d', t('audit.filter7d')], ['24h', t('audit.filter24h')]].map(([val, label]) => /*#__PURE__*/React.createElement("button", {
     key: val,
     onClick: () => setFilter(val),
     className: `px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${filter === val ? 'bg-gea-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`

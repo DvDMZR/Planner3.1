@@ -23,7 +23,7 @@ const EXPORTS = [
     'getAssignmentHours', 'formatKW', 'describeAssignment',
     'compareWeekIds', 'validateRestoredSession', 'validateImportedState',
     'mergeAuditLogs', 'isValidTeamName', 'getInvoiceState', 'budgetUsage',
-    'computeVacationDays',
+    'computeVacationDays', 'buildCsv',
     'hashPin', 'verifyPin', 'generatePinSalt',
     // datalayer.js
     'migrateCostItem', 'migrateCostItems', 'migrateExpensesToCostItems',

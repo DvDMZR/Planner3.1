@@ -2639,6 +2639,22 @@ function App() {
     setIsInvoiceModalOpen(true);
   }, [projectById, selectedProjectDetails, assignmentsByProject, costItemsByProject]);
 
+  // Gemeinsamer CSV-Download für alle Ansichten (buildCsv in utils.js
+  // liefert das Excel-kompatible Format des Rechnungs-Exports).
+  const downloadCsv = useCallback((filename, rows) => {
+    const blob = new Blob([buildCsv(rows)], {
+      type: 'text/csv;charset=utf-8;'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, []);
+
   // Export/Versand einer Rechnung markiert das Projekt als 'exportiert'
   // (Rechnungs-Status-Chip in Projektdetails/-liste, getInvoiceState) und
   // hinterlässt einen Audit-Eintrag. invoiceExportedAt füttert den Tooltip.
@@ -2720,18 +2736,7 @@ function App() {
 
     // ── Total ───────────────────────────────────────────────
     rows.push(["GESAMT NETTO (EUR)", fmt2(total)]);
-    const csvContent = "\uFEFF" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
-    const blob = new Blob([csvContent], {
-      type: 'text/csv;charset=utf-8;'
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Rechnung_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadCsv(`Rechnung_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`, rows);
     markInvoiceExported(proj, 'als CSV exportiert');
   };
   const handleInvoiceSendEmail = () => {
@@ -3589,6 +3594,7 @@ function App() {
     importData,
     buildInvoiceData,
     openInvoiceModal,
+    downloadCsv,
     scrollToCurrentWeek,
     scrollToWeekById,
     reconnectSharePoint,

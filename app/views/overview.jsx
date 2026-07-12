@@ -36,6 +36,7 @@ const OverviewView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
+        downloadCsv,
         scrollToCurrentWeek, scrollToWeekById, openNewProjectForm } = h;
         const fmt = n => n.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         const currentWeekStr = getWeekString(new Date());
@@ -211,6 +212,16 @@ const OverviewView = ({ s, h }) => {
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl text-gea-800 font-semibold">{t('overview.title')}</h2>
                         <div className="flex items-center gap-4 text-sm text-slate-500">
+                            <button onClick={() => {
+                                const rowsCsv = [[t('overview.colProject'), t('proj.colNr'), t('overview.colCountry'), t('overview.colStatus'), 'IBN', t('overview.colHours'), t('overview.colLabor'), t('overview.colExtra'), t('overview.colTotal'), t('overview.colBudget')]];
+                                groupedRows.forEach(([cat, catRows]) => catRows.forEach(({ p, totalHours, totalLaborCost, zusatzkosten, gesamtkosten }) => {
+                                    rowsCsv.push([p.name, p.projectNumber || '', resolveCountryCode(p.country), t('status.' + computeAutoStatus(p)), p.ibnWeek || '', totalHours, totalLaborCost.toFixed(2), zusatzkosten.toFixed(2), gesamtkosten.toFixed(2), p.budget != null ? Number(p.budget).toFixed(2) : '']);
+                                }));
+                                downloadCsv(`Uebersicht_${new Date().toISOString().slice(0,10)}.csv`, rowsCsv);
+                            }}
+                                className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-600 hover:border-gea-400 hover:text-gea-600 transition-colors font-medium">
+                                {t('btn.exportCsv')}
+                            </button>
                             <span>{t('overview.projects', { n: rows.length })}</span>
                             <span className="text-slate-300">|</span>
                             <span>{fmt(totalHoursAll)} {t('overview.hoursTotal')}</span>

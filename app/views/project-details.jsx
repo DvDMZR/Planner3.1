@@ -36,6 +36,7 @@ const ProjectDetailsView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
+        downloadCsv,
         scrollToCurrentWeek, showToast,
         setEmpAliases, setFxRates } = h;
         const [isExpenseImportOpen, setIsExpenseImportOpen] = React.useState(false);
@@ -145,9 +146,28 @@ const ProjectDetailsView = ({ s, h }) => {
                     {/* Employee Presence Overview */}
                     {assignedEmpIds.length > 0 && presenceWeeks.length > 0 && (
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                            <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                            <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center gap-3">
                                 <h3 className="text-slate-900 text-base font-medium">{t('projDetail.presence')}</h3>
-                                <span className="text-xs text-slate-400">{presenceWeeks.length} {t('projDetail.weeks')}</span>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => {
+                                        const rowsCsv = [[t('projDetail.colEmployee'), ...presenceWeeks.map(w => 'KW' + w.split('-W')[1]), t('projDetail.colHours')]];
+                                        assignedEmpIds.forEach(empId => {
+                                            const emp = employeeById.get(empId);
+                                            const empAss = assignmentsByEmpId.get(empId) || [];
+                                            const empHours = empAss.reduce((acc, a) => acc + (a.hours ?? (a.percent / 100 * HOURS_PER_WEEK)), 0);
+                                            rowsCsv.push([emp?.name || '?',
+                                                ...presenceWeeks.map(w => {
+                                                    const a = empAss.find(x => x.week === w);
+                                                    return a ? (a.hours ?? Math.round((a.percent ?? 100) / 100 * HOURS_PER_WEEK)) : '';
+                                                }), empHours]);
+                                        });
+                                        downloadCsv(`Anwesenheit_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`, rowsCsv);
+                                    }}
+                                        className="text-xs px-2 py-1 rounded border border-slate-300 bg-white text-slate-500 hover:border-gea-400 hover:text-gea-600 transition-colors font-medium">
+                                        {t('btn.exportCsv')}
+                                    </button>
+                                    <span className="text-xs text-slate-400">{presenceWeeks.length} {t('projDetail.weeks')}</span>
+                                </div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="text-xs border-collapse w-full">
@@ -198,12 +218,34 @@ const ProjectDetailsView = ({ s, h }) => {
 
                     {/* Cost Items Table */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center gap-3">
                             <h3 className="text-slate-900 text-base font-medium">{t('projDetail.costItems')}</h3>
-                            <button onClick={() => { setEditingCostItem(null); setIsCostItemModalOpen(true); }}
-                                className="text-gea-600 text-sm font-medium hover:text-gea-700 flex items-center gap-1">
-                                <IconPlus size={15}/> {t('btn.add')}
-                            </button>
+                            <div className="flex items-center gap-3">
+                                {projCostItems.length > 0 && (
+                                    <button onClick={() => {
+                                        // Eine CSV-Zeile pro Kostenzeile (Posten mit mehreren
+                                        // Zeilen erscheinen mehrfach, Posten-Summe in jeder Zeile).
+                                        const rowsCsv = [[t('projDetail.colEmployee'), t('projDetail.colOccasion'), t('util.kw'), 'Typ', t('projDetail.colAmount'), 'Kommentar', 'Posten-Summe']];
+                                        projCostItems.forEach(ci => {
+                                            const emp = employeeById.get(ci.empId);
+                                            const kwLabel = ci.dateFrom ? getWeekString(new Date(ci.dateFrom)) : (ci.week || '');
+                                            (ci.lines || []).forEach(l => {
+                                                const cfg = COST_LINE_TYPES[l.type] || COST_LINE_TYPES.other;
+                                                rowsCsv.push([emp?.name || '', ci.description || '', kwLabel,
+                                                    cfg.label, (l.amount || 0).toFixed(2), l.comment || '', (ci.amount || 0).toFixed(2)]);
+                                            });
+                                        });
+                                        downloadCsv(`Kostenpunkte_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`, rowsCsv);
+                                    }}
+                                        className="text-xs px-2 py-1 rounded border border-slate-300 bg-white text-slate-500 hover:border-gea-400 hover:text-gea-600 transition-colors font-medium">
+                                        {t('btn.exportCsv')}
+                                    </button>
+                                )}
+                                <button onClick={() => { setEditingCostItem(null); setIsCostItemModalOpen(true); }}
+                                    className="text-gea-600 text-sm font-medium hover:text-gea-700 flex items-center gap-1">
+                                    <IconPlus size={15}/> {t('btn.add')}
+                                </button>
+                            </div>
                         </div>
                         {projCostItems.length === 0 ? (
                             <EmptyState
