@@ -370,10 +370,27 @@ function App() {
 
     // SharePoint / FS sync
     const syncStatusRef = useRef(SP_CONTEXT ? 'connecting' : 'local');
+    // Zeitpunkt des letzten Statuswechsels – Grundlage für den Watchdog, der
+    // hängengebliebene Transient-Status (syncing/connecting/reconnecting)
+    // erkennt und auflöst, damit das Poll-Gate nie dauerhaft blockiert.
+    const syncStatusSinceRef = useRef(Date.now());
     const isRemoteUpdateRef = useRef(false);
     const spSaveTimer = useRef(null);
     const [syncStatus, setSyncStatusState] = useState(SP_CONTEXT ? 'connecting' : 'local');
-    const setSyncStatus = (s) => { syncStatusRef.current = s; setSyncStatusState(s); };
+    const setSyncStatus = (s) => {
+        if (syncStatusRef.current !== s) syncStatusSinceRef.current = Date.now();
+        syncStatusRef.current = s;
+        setSyncStatusState(s);
+    };
+    // Letzter erfolgreicher Abgleich mit SharePoint/FS, minutengenau als
+    // Anzeige-String – minutengenau, damit der setState im 5-s-Poll fast
+    // immer ein No-Op ist (React bailt bei identischem Wert aus) und nicht
+    // jede Poll-Runde einen App-Render auslöst.
+    const [lastSyncLabel, setLastSyncLabel] = useState('');
+    const markSyncOk = useCallback(() => {
+        const d = new Date();
+        setLastSyncLabel(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    }, []);
 
     // File System sync (OneDrive lokal)
     const dirHandleRef = useRef(null);
@@ -477,13 +494,21 @@ function App() {
                     if (e instanceof SpAuthError) {
                         // Session expired between page load and our first
                         // REST call – try a silent refresh before giving up.
+                        // spEnsureSession wirft Nicht-Auth-Fehler (Netz, 429)
+                        // weiter – ohne try/catch bliebe der Status dauerhaft
+                        // auf 'reconnecting' und das Poll-Gate stünde still.
                         setSyncStatus('reconnecting');
-                        const ok = await spEnsureSession(SP_CONTEXT, { interactive: false });
+                        let ok = false, refreshError = false;
+                        try { ok = await spEnsureSession(SP_CONTEXT, { interactive: false }); }
+                        catch(e2) { refreshError = true; console.warn('[SP] session refresh failed', e2); }
                         if (ok) {
                             try { await runLoad(); setSyncStatus('idle'); }
-                            catch(e2) { console.warn('[SP] load retry failed', e2); setSyncStatus('needs-auth'); }
+                            catch(e2) {
+                                console.warn('[SP] load retry failed', e2);
+                                setSyncStatus(e2 instanceof SpAuthError ? 'needs-auth' : 'offline');
+                            }
                         } else {
-                            setSyncStatus('needs-auth');
+                            setSyncStatus(refreshError ? 'offline' : 'needs-auth');
                         }
                     } else {
                         console.warn('[SP] load failed', e);
@@ -819,9 +844,23 @@ function App() {
                     if (e instanceof SpConflictError) {
                         conflictRetryRef.current += 1;
                         if (conflictRetryRef.current >= 3) {
+                            // Kein terminaler Zustand mehr (vorher half nur ein
+                            // Seiten-Reload): Remote-Stand einmal komplett
+                            // übernehmen und normal weiterlaufen.
                             spFileEtagsRef.current = {};
                             setSyncStatus('conflict-loop');
-                            showToast('Wiederholte Sync-Konflikte – bitte Seite neu laden.', { type: 'warning', duration: 8000 });
+                            showToast('Wiederholte Sync-Konflikte – Stand vom Server wurde übernommen.', { type: 'warning', duration: 8000 });
+                            try {
+                                const { state, timestamps, etags } = await loadSplitStateSp(SP_CONTEXT);
+                                spFileTimestampsRef.current = timestamps;
+                                spFileEtagsRef.current = stripMetaEtag(etags);
+                                applyRemoteSnapshot(state, { notify: false });
+                                conflictRetryRef.current = 0;
+                                setSyncStatus('idle');
+                            } catch(e2) {
+                                console.warn('[SP] conflict-loop reload failed', e2);
+                                setSyncStatus('offline');
+                            }
                             return;
                         }
                         // Another client modified the file while we were editing.
@@ -848,13 +887,20 @@ function App() {
                         // replay the save exactly once. lastSavedSpRef is only
                         // updated per successful file write, so interrupted
                         // writes are naturally retried on the next save.
+                        // try/catch um spEnsureSession: Nicht-Auth-Fehler dürfen
+                        // den Status nicht auf 'reconnecting' festnageln.
                         setSyncStatus('reconnecting');
-                        const ok = await spEnsureSession(SP_CONTEXT, { interactive: false });
+                        let ok = false, refreshError = false;
+                        try { ok = await spEnsureSession(SP_CONTEXT, { interactive: false }); }
+                        catch(e2) { refreshError = true; console.warn('[SP] session refresh failed', e2); }
                         if (ok) {
                             try { await runSave(); setSyncStatus('idle'); }
-                            catch(e2) { console.warn('[SP] save retry failed', e2); setSyncStatus('needs-auth'); }
+                            catch(e2) {
+                                console.warn('[SP] save retry failed', e2);
+                                setSyncStatus(e2 instanceof SpAuthError ? 'needs-auth' : 'offline');
+                            }
                         } else {
-                            setSyncStatus('needs-auth');
+                            setSyncStatus(refreshError ? 'offline' : 'needs-auth');
                         }
                     } else {
                         console.warn('[SP] save failed', e);
@@ -1331,6 +1377,7 @@ function App() {
                     pollIdleCyclesRef.current++; // quiet cycle → adaptive back-off
                 }
                 pollFailuresRef.current = 0;
+                markSyncOk();
                 // Recover from a prior 'offline' as soon as the next poll
                 // succeeds – no need to wait for a user edit.
                 if (syncStatusRef.current === 'offline') setSyncStatus('idle');
@@ -1339,9 +1386,19 @@ function App() {
                     // Session expired – drive the recovery pipeline. Silent
                     // refresh succeeds while the user's Entra session is
                     // alive, otherwise we surface the manual reconnect CTA.
+                    // try/catch: wirft spEnsureSession einen Nicht-Auth-Fehler
+                    // (Netz, 429 nach Retries), bliebe der Status sonst für
+                    // immer 'reconnecting' und das Gate oben stoppte jeden
+                    // weiteren Poll – Änderungen von Kollegen kämen erst nach
+                    // dem nächsten lokalen Save wieder an.
                     setSyncStatus('reconnecting');
-                    const ok = await spEnsureSession(SP_CONTEXT, { interactive: false });
-                    setSyncStatus(ok ? 'idle' : 'needs-auth');
+                    try {
+                        const ok = await spEnsureSession(SP_CONTEXT, { interactive: false });
+                        setSyncStatus(ok ? 'idle' : 'needs-auth');
+                    } catch(e2) {
+                        console.warn('[SP] session refresh failed', e2);
+                        setSyncStatus('offline');
+                    }
                     pollFailuresRef.current = 0;
                 } else {
                     pollFailuresRef.current += 1;
@@ -1372,6 +1429,16 @@ function App() {
         const onVisible = () => {
             if (document.visibilityState !== 'visible') return;
             pollIdleCyclesRef.current = 0;
+            // Selbstheilung bei abgelaufener Session: War die Entra-Session
+            // beim letzten Versuch tot, ist sie nach einer Tab-Rückkehr oft
+            // wieder da (SSO). Stiller Versuch statt auf den CTA-Klick zu
+            // warten; spSilentAuthInFlight dedupliziert parallele Versuche.
+            if (syncStatusRef.current === 'needs-auth') {
+                spEnsureSession(SP_CONTEXT, { interactive: false })
+                    .then(ok => { if (ok && syncStatusRef.current === 'needs-auth') setSyncStatus('idle'); })
+                    .catch(() => {});
+                return;
+            }
             poll();
         };
         document.addEventListener('visibilitychange', onVisible);
@@ -1398,6 +1465,25 @@ function App() {
         return () => clearTimeout(t);
     }, []);
 
+    // Status-Watchdog: Ein Transient-Status, der länger als 45 s unverändert
+    // steht, ist ein Leck (hängender Fetch, geschluckter Fehler in einem
+    // Recovery-Pfad). Da das Poll-Gate diese Status überspringt, würde ohne
+    // Watchdog dauerhaft nicht mehr gepollt – Kollegen-Änderungen kämen erst
+    // nach dem nächsten lokalen Save an. 'offline' heilt sich beim nächsten
+    // erfolgreichen Poll selbst zu 'idle'.
+    useEffect(() => {
+        if (!SP_CONTEXT) return;
+        const TRANSIENT = ['syncing', 'connecting', 'reconnecting'];
+        const t = setInterval(() => {
+            if (TRANSIENT.includes(syncStatusRef.current)
+                && Date.now() - syncStatusSinceRef.current > 45000) {
+                console.warn('[SP] sync status stuck in', syncStatusRef.current, '– resetting to offline');
+                setSyncStatus('offline');
+            }
+        }, 15000);
+        return () => clearInterval(t);
+    }, []);
+
     // File System polling – Änderungen von Kollegen alle 5 Sek. erkennen.
     useEffect(() => {
         if (!FS_MODE) return;
@@ -1413,6 +1499,7 @@ function App() {
                     fsFileTimestampsRef.current = timestamps;
                     applyRemoteSnapshot(state);
                 }
+                markSyncOk();
             } catch(e) {
                 // Transient errors are expected (file mid-write, handle busy);
                 // still log them so a permanently broken poll is diagnosable.
@@ -2709,7 +2796,7 @@ function App() {
         isInvoiceModalOpen, invoiceSelection, invoiceRecipient, isProjFormOpen,
         isHelpModalOpen, timelineYear, empForm, editingEmpId, isEmpFormOpen, projForm,
         editingProjectId, newEmpCat, newProjCat, newBasicTask, newOfftimeTask,
-        expandedSetupCats, syncStatus, fsStatus,
+        expandedSetupCats, syncStatus, fsStatus, lastSyncLabel,
         employeeById, projectById, assignmentsByEmpWeek, assignmentsByProject,
         assignmentsByProjectWeek, costItemsByProject, projectStatusById,
         activeEmployees, activeEmpsByCategory, activeEmpCategories,

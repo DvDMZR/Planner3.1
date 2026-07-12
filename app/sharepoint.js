@@ -87,9 +87,22 @@ function spIsAuthResponse(r) {
 // Uniform fetch wrapper for all SharePoint REST calls: always includes
 // credentials, converts auth failures into SpAuthError, and lets callers
 // handle remaining HTTP errors as before.
+// Hard timeout via AbortController: ein hängender Request (Standby,
+// WLAN-Wechsel) darf Save-/Poll-Pfade nicht minutenlang festhalten – sonst
+// bleibt syncStatus auf 'syncing' stehen und das Poll-Gate stoppt jede
+// Aktualisierung. Der Abort wird von spFetchWithRetry wie ein Netzfehler
+// behandelt (Retry, danach Fehler statt Hänger).
+const SP_FETCH_TIMEOUT_MS = 30000;
 async function spFetch(url, init) {
-    const opts = Object.assign({}, init, { credentials: 'include' });
-    const r = await fetch(url, opts);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SP_FETCH_TIMEOUT_MS);
+    const opts = Object.assign({}, init, { credentials: 'include', signal: ctrl.signal });
+    let r;
+    try {
+        r = await fetch(url, opts);
+    } finally {
+        clearTimeout(timer);
+    }
     if (spIsAuthResponse(r)) {
         spDigestCache.expiresAt = 0;
         throw new SpAuthError('SharePoint auth required', r.status);

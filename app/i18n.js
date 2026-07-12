@@ -50,9 +50,11 @@ const TRANSLATIONS = {
         'sync.syncing':         'Speichert ...',
         'sync.updated':         'Aktualisiert ✓',
         'sync.conflictReload':  'Änderung eines Kollegen übernommen',
+        'sync.conflictLoop':    'Sync-Konflikte – Server-Stand übernommen',
         'sync.reconnecting':    'Sitzung erneuern ...',
         'sync.offline':         'Offline – lokal',
         'sync.connecting':      'Verbindet ...',
+        'sync.lastSync':        'Zuletzt synchronisiert: {time} Uhr',
         'sync.sessionExpired':  'Sitzung abgelaufen – neu verbinden',
         'sync.sessionExpiredTitle': 'Sitzung bei SharePoint ist abgelaufen – hier klicken um sich neu anzumelden',
 
@@ -763,9 +765,11 @@ const TRANSLATIONS = {
         'sync.syncing':         'Saving...',
         'sync.updated':         'Updated ✓',
         'sync.conflictReload':  "Colleague's change applied",
+        'sync.conflictLoop':    'Sync conflicts – server state applied',
         'sync.reconnecting':    'Renewing session...',
         'sync.offline':         'Offline – local',
         'sync.connecting':      'Connecting...',
+        'sync.lastSync':        'Last synced: {time}',
         'sync.sessionExpired':  'Session expired – reconnect',
         'sync.sessionExpiredTitle': 'SharePoint session expired – click to log in again',
 
