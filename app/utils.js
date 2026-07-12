@@ -508,6 +508,38 @@ const getInvoiceState = (p) => {
     return 'open';
 };
 
+// Urlaubsverbrauch eines Mitarbeiters in einem Kalenderjahr, in Tagen.
+// Die Planung ist wochenbasiert: eine geplante 'Vacation'-Woche zählt als
+// 5 Arbeitstage abzüglich der deutschen Feiertage, die in dieser Woche auf
+// Mo–Fr fallen. Teilzeit wird bewusst nicht verrechnet – gepflegt sind nur
+// Wochenstunden, nicht Arbeitstage pro Woche. Mehrere Vacation-Einträge in
+// derselben Woche zählen nur einmal.
+const computeVacationDays = (assignments, empId, year) => {
+    const holidays = {
+        ...getGermanHolidays(year - 1),
+        ...getGermanHolidays(year),
+        ...getGermanHolidays(year + 1),
+    };
+    const seenWeeks = new Set();
+    let days = 0;
+    for (const a of assignments || []) {
+        if (!a || a.empId !== empId) continue;
+        if (a.type !== 'offtime' || a.reference !== 'Vacation') continue;
+        const week = String(a.week || '');
+        if (!week.startsWith(year + '-W') || seenWeeks.has(week)) continue;
+        seenWeeks.add(week);
+        const monday = weekIdToMonday(week);
+        let workdayHolidays = 0;
+        for (let i = 0; i < 5; i++) {
+            const d = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + i));
+            const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+            if (holidays[key]) workdayHolidays++;
+        }
+        days += Math.max(0, 5 - workdayHolidays);
+    }
+    return days;
+};
+
 // Budget-Auslastung eines Projekts: Ist-Kosten gegen das optionale
 // Soll-Budget. Ohne gepflegtes/positives Budget → null (keine Anzeige).
 // Ampel-Schwellen: <80% ok, 80–100% warn, >100% over.

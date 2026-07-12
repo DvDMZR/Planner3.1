@@ -83,6 +83,18 @@ const OfftimeView = ({ s, h }) => {
     const currentYear = new Date().getFullYear();
     const offtimeWeeks = timelineWeeks;
 
+    // Urlaubskonto: Verbrauch je Mitarbeiter im angezeigten Jahr (nur für
+    // Mitarbeiter mit gepflegtem Jahresanspruch, employee.vacationDays).
+    // Konvention siehe computeVacationDays: Woche = 5 Arbeitstage − Feiertage.
+    const vacationUsedByEmp = React.useMemo(() => {
+        const m = new Map();
+        activeEmployees.forEach(e => {
+            if (e.vacationDays == null) return;
+            m.set(e.id, computeVacationDays(assignments, e.id, timelineYear));
+        });
+        return m;
+    }, [assignments, activeEmployees, timelineYear]);
+
     const [menuOpen, setMenuOpen] = React.useState(false);
     const menuRef = React.useRef(null);
     React.useEffect(() => {
@@ -329,7 +341,22 @@ const OfftimeView = ({ s, h }) => {
                                         return (
                                         <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="p-3 border-b border-slate-300 bg-white sticky left-0 z-20 sticky-col-divider">
-                                                <div className="text-slate-800 font-medium text-sm">{emp.name}</div>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="text-slate-800 font-medium text-sm truncate">{emp.name}</div>
+                                                    {emp.vacationDays != null && (() => {
+                                                        const used = vacationUsedByEmp.get(emp.id) || 0;
+                                                        const total = emp.vacationDays;
+                                                        const cls = used > total ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                                  : used === total ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                  :                  'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                                        return (
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold tabular-nums shrink-0 ${cls}`}
+                                                                title={t('offtime.vacationTooltip', { year: timelineYear, remaining: Math.max(0, total - used) })}>
+                                                                {used}/{total} {t('offtime.vacationDaysShort')}
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </td>
                                             {leftSpacerSpan > 0 && <td colSpan={leftSpacerSpan} className="border-b border-r border-slate-300 bg-white"/>}
                                             {visibleWeeks.map(w => {

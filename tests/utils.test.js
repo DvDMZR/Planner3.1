@@ -231,3 +231,41 @@ test('budgetUsage: Prozent und Ampel-Level', () => {
     // Fehlende Ist-Kosten zählen als 0
     assert.deepEqual(app.budgetUsage(1000, undefined), { pct: 0, level: 'ok' });
 });
+
+// ── Urlaubskonto (computeVacationDays) ───────────────────────────────────────
+
+test('computeVacationDays: zählt Vacation-Wochen als 5 Tage minus Feiertage', () => {
+    const ass = [
+        // Normale Woche ohne Feiertag → 5 Tage (2026-W06: 2.–6. Feb)
+        { empId: 'e1', type: 'offtime', reference: 'Vacation', week: '2026-W06' },
+        // 2026-W20 enthält Himmelfahrt (14.05.2026, Donnerstag) → 4 Tage
+        { empId: 'e1', type: 'offtime', reference: 'Vacation', week: '2026-W20' },
+        // Andere Offtime-Typen zählen nicht
+        { empId: 'e1', type: 'offtime', reference: 'Sickness', week: '2026-W08' },
+        // Anderer Mitarbeiter zählt nicht
+        { empId: 'e2', type: 'offtime', reference: 'Vacation', week: '2026-W10' },
+        // Anderes Jahr zählt nicht
+        { empId: 'e1', type: 'offtime', reference: 'Vacation', week: '2025-W30' },
+        // Projekt-Assignments zählen nie
+        { empId: 'e1', type: 'project', reference: 'p1', week: '2026-W12' },
+    ];
+    assert.equal(app.computeVacationDays(ass, 'e1', 2026), 9);
+    assert.equal(app.computeVacationDays(ass, 'e2', 2026), 5);
+    assert.equal(app.computeVacationDays(ass, 'e1', 2025), 5);
+});
+
+test('computeVacationDays: Weihnachtswoche, Duplikate, Randfälle', () => {
+    // 2026-W53 (28.12.26–01.01.27): kein Feiertag Mo–Do, aber Neujahr (Fr 01.01.27
+    // aus dem Nachbarjahr) fällt in die Arbeitswoche → 4 Tage.
+    const xmas = [{ empId: 'e1', type: 'offtime', reference: 'Vacation', week: '2026-W53' }];
+    assert.equal(app.computeVacationDays(xmas, 'e1', 2026), 4);
+    // Doppelte Vacation-Einträge in derselben Woche zählen nur einmal
+    const dup = [
+        { empId: 'e1', type: 'offtime', reference: 'Vacation', week: '2026-W06' },
+        { empId: 'e1', type: 'offtime', reference: 'Vacation', week: '2026-W06' },
+    ];
+    assert.equal(app.computeVacationDays(dup, 'e1', 2026), 5);
+    // Leere/fehlende Eingaben
+    assert.equal(app.computeVacationDays([], 'e1', 2026), 0);
+    assert.equal(app.computeVacationDays(null, 'e1', 2026), 0);
+});
