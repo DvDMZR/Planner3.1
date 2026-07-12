@@ -492,3 +492,18 @@ const mergeAuditLogs = (a, b) => {
     out.sort((x, y) => (y.timestamp || '').localeCompare(x.timestamp || ''));
     return out.slice(0, 500);
 };
+
+// Rechnungs-Status eines Projekts ("Prozess 1", Kostenübermittlung ans
+// Auftragszentrum) – abgeleitet statt separat gepflegt, damit er nie mit
+// dem manuellen Häkchen "Kosten eingereicht" kollidiert:
+//   'submitted' – costsSubmitted gesetzt (finaler Zustand)
+//   'exported'  – mindestens einmal CSV-Export/E-Mail-Versand gelaufen
+//                 (invoiceStatus wird dabei gesetzt; Bestandsdaten tragen
+//                 den Legacy-Wert 'exportiert', jeder truthy Wert zählt)
+//   'open'      – noch nichts davon
+const getInvoiceState = (p) => {
+    if (!p) return 'open';
+    if (p.costsSubmitted) return 'submitted';
+    if (p.invoiceStatus) return 'exported';
+    return 'open';
+};

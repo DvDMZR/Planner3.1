@@ -228,6 +228,10 @@ const ProjectDetailsView = ({
   }, /*#__PURE__*/React.createElement(StatusBadge, {
     status: computeAutoStatus(proj),
     t: t
+  }), /*#__PURE__*/React.createElement(InvoiceStateChip, {
+    project: proj,
+    t: t,
+    showOpen: true
   }), /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 cursor-pointer select-none"
   }, /*#__PURE__*/React.createElement("input", {

@@ -104,6 +104,7 @@ const ProjectDetailsView = ({ s, h }) => {
                     {/* Status + checkboxes */}
                     <div className="flex items-center gap-3 flex-wrap">
                         <StatusBadge status={computeAutoStatus(proj)} t={t}/>
+                        <InvoiceStateChip project={proj} t={t} showOpen={true}/>
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                             <input type="checkbox"
                                 checked={!!proj.projectCompleted}

@@ -22,7 +22,7 @@ const EXPORTS = [
     'getGermanHolidays', 'generateWeeksForYear', 'resolveCountryCode',
     'getAssignmentHours', 'formatKW', 'describeAssignment',
     'compareWeekIds', 'validateRestoredSession', 'validateImportedState',
-    'mergeAuditLogs', 'isValidTeamName',
+    'mergeAuditLogs', 'isValidTeamName', 'getInvoiceState',
     'hashPin', 'verifyPin', 'generatePinSalt',
     // datalayer.js
     'migrateCostItem', 'migrateCostItems', 'migrateExpensesToCostItems',

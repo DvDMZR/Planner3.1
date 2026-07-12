@@ -458,6 +458,9 @@ const TRANSLATIONS = {
         'help.statusCostsSubmitted': 'Kosten wurden bereits übermittelt',
 
         // InvoiceModal
+        'invoice.state.open':      'Rechnung offen',
+        'invoice.state.exported':  'Rechnung exportiert',
+        'invoice.state.exportedAt': 'Zuletzt exportiert: {date}',
         'invoice.title':       'Rechnung konfigurieren',
         'invoice.laborSection': 'Dienstleistungen (Arbeitszeit)',
         'invoice.noLabor':     'Keine Arbeitszeiten verplant.',
@@ -1175,6 +1178,9 @@ const TRANSLATIONS = {
         'help.statusCostsSubmitted': 'Costs have already been submitted',
 
         // InvoiceModal
+        'invoice.state.open':      'Invoice open',
+        'invoice.state.exported':  'Invoice exported',
+        'invoice.state.exportedAt': 'Last exported: {date}',
         'invoice.title':       'Configure Invoice',
         'invoice.laborSection': 'Services (Working hours)',
         'invoice.noLabor':     'No working hours scheduled.',

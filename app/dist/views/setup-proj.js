@@ -294,10 +294,15 @@ const SetupProjView = ({
       title: t('proj.colCountry')
     }, cc)), /*#__PURE__*/React.createElement("td", {
       className: "p-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1.5 flex-wrap"
     }, /*#__PURE__*/React.createElement(StatusBadge, {
       status: effStatus,
       t: t
-    })), /*#__PURE__*/React.createElement("td", {
+    }), /*#__PURE__*/React.createElement(InvoiceStateChip, {
+      project: p,
+      t: t
+    }))), /*#__PURE__*/React.createElement("td", {
       className: "p-3 text-slate-600 text-xs"
     }, p.startWeek, " \u2013 ", p.ibnWeek), /*#__PURE__*/React.createElement("td", {
       className: "p-3 text-right"
@@ -345,6 +350,9 @@ const SetupProjView = ({
       className: "flex items-center gap-1.5 flex-wrap"
     }, /*#__PURE__*/React.createElement(StatusBadge, {
       status: effStatus,
+      t: t
+    }), /*#__PURE__*/React.createElement(InvoiceStateChip, {
+      project: p,
       t: t
     }), p.projType && /*#__PURE__*/React.createElement("span", {
       className: "text-xs bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded font-medium"

@@ -1382,6 +1382,28 @@ const CommandPalette = ({
   }))))));
 };
 
+// Rechnungs-Status-Chip eines Projekts (getInvoiceState, utils.js).
+// 'submitted' rendert bewusst nie – dieser Zustand hat mit costs_submitted
+// bereits einen eigenen StatusBadge; 'open' nur auf Wunsch (Projektdetails),
+// damit Listen nicht mit "Rechnung offen"-Chips fluten.
+const InvoiceStateChip = ({
+  project,
+  t,
+  showOpen = false
+}) => {
+  const state = getInvoiceState(project);
+  if (state === 'submitted') return null;
+  if (state === 'open' && !showOpen) return null;
+  const cls = state === 'exported' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-slate-50 text-slate-500 border-slate-200';
+  const title = project.invoiceExportedAt ? t('invoice.state.exportedAt', {
+    date: new Date(project.invoiceExportedAt).toLocaleDateString()
+  }) : undefined;
+  return /*#__PURE__*/React.createElement("span", {
+    title: title,
+    className: `text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${cls}`
+  }, t('invoice.state.' + state));
+};
+
 // --- EXTRACTED MODAL COMPONENTS (module scope) ---
 // Defined outside App() so their internal useState survives parent re-renders.
 // If they were defined inside App() they'd get a new function identity every

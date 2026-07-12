@@ -197,3 +197,17 @@ test('hashPin/verifyPin: Roundtrip und Ablehnung falscher PINs', async () => {
     assert.equal(await app.verifyPin('9999', hash, salt, 'pbkdf2-100k'), false);
     assert.equal(await app.verifyPin('1234', null, salt, 'pbkdf2-100k'), false);
 });
+
+// ── Rechnungs-Status (abgeleitet, Prozess 1) ─────────────────────────────────
+
+test('getInvoiceState: leitet den Rechnungs-Status korrekt ab', () => {
+    // Kein Projekt / nichts passiert → offen
+    assert.equal(app.getInvoiceState(null), 'open');
+    assert.equal(app.getInvoiceState({}), 'open');
+    // Export gelaufen (neuer wie Legacy-Wert) → exportiert
+    assert.equal(app.getInvoiceState({ invoiceStatus: 'exportiert' }), 'exported');
+    assert.equal(app.getInvoiceState({ invoiceStatus: 'x' }), 'exported');
+    // Manuelles Häkchen "Kosten eingereicht" gewinnt immer
+    assert.equal(app.getInvoiceState({ costsSubmitted: true }), 'submitted');
+    assert.equal(app.getInvoiceState({ costsSubmitted: true, invoiceStatus: 'exportiert' }), 'submitted');
+});

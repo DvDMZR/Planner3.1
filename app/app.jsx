@@ -2223,6 +2223,16 @@ function App() {
         setIsInvoiceModalOpen(true);
     }, [projectById, selectedProjectDetails, assignmentsByProject, costItemsByProject]);
 
+    // Export/Versand einer Rechnung markiert das Projekt als 'exportiert'
+    // (Rechnungs-Status-Chip in Projektdetails/-liste, getInvoiceState) und
+    // hinterlässt einen Audit-Eintrag. invoiceExportedAt füttert den Tooltip.
+    const markInvoiceExported = (proj, kind) => {
+        const exportedAt = new Date().toISOString();
+        setProjects(prev => prev.map(p => p.id === proj.id
+            ? { ...p, invoiceStatus: 'exportiert', invoiceExportedAt: exportedAt } : p));
+        logAudit('invoice_export', `Rechnung ${kind}: ${proj.name}`);
+    };
+
     const handleInvoiceExport = () => {
         const proj = projectById.get(selectedProjectDetails);
         if (!proj) return;
@@ -2297,7 +2307,7 @@ function App() {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
-                setProjects(prev => prev.map(p => p.id === selectedProjectDetails ? {...p, invoiceStatus: 'exportiert'} : p));
+        markInvoiceExported(proj, 'als CSV exportiert');
     };
 
     const handleInvoiceSendEmail = () => {
@@ -2392,6 +2402,7 @@ function App() {
         const subject = encodeURIComponent(`Kostenaufstellung: ${proj.name} - ${new Date().toLocaleDateString('de-DE')}`);
         const body = encodeURIComponent(lines.join('\n'));
         window.location.href = `mailto:${encodeURIComponent(invoiceRecipient)}?subject=${subject}&body=${body}`;
+        markInvoiceExported(proj, 'per E-Mail versendet');
     };
 
     // --- SUB-COMPONENTS ---
