@@ -40,7 +40,7 @@ const SetupEmpView = ({ s, h }) => {
     const closeEmpForm = React.useCallback(() => setIsEmpFormOpen(false), [setIsEmpFormOpen]);
     useEscapeToClose(isEmpFormOpen ? closeEmpForm : null);
 
-        const emptyForm = { name: '', category: empCategories[0] || '', weeklyHours: HOURS_PER_WEEK, email: '', role: '', notes: '', booksOnInvoice: false };
+        const emptyForm = { name: '', category: empCategories[0] || '', weeklyHours: HOURS_PER_WEEK, vacationDays: '', email: '', role: '', notes: '', booksOnInvoice: false };
         const isValidEmail = (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
         const openCreateForm = () => {
@@ -53,10 +53,13 @@ const SetupEmpView = ({ s, h }) => {
             if (!empForm.name.trim()) return;
             if (!isValidEmail(empForm.email)) return;
             const wh = Math.max(1, parseInt(empForm.weeklyHours) || HOURS_PER_WEEK);
+            // Urlaubsanspruch: leer = kein Tracking (null), sonst ganze Tage
+            const vdStr = String(empForm.vacationDays ?? '').trim();
             const payload = {
                 name: empForm.name.trim(),
                 category: empForm.category,
                 weeklyHours: wh,
+                vacationDays: vdStr === '' ? null : Math.max(0, parseInt(vdStr) || 0),
                 email: (empForm.email || '').trim() || null,
                 role: (empForm.role || '').trim() || null,
                 notes: (empForm.notes || '').trim() || null,
@@ -77,6 +80,7 @@ const SetupEmpView = ({ s, h }) => {
                 name: e.name || '',
                 category: e.category || empCategories[0] || '',
                 weeklyHours: e.weeklyHours ?? HOURS_PER_WEEK,
+                vacationDays: e.vacationDays != null ? String(e.vacationDays) : '',
                 email: e.email || '',
                 role: e.role || '',
                 notes: e.notes || '',
@@ -228,6 +232,11 @@ const SetupEmpView = ({ s, h }) => {
                                     <div>
                                         <label className="block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">{t('emp.colHours')}</label>
                                         <input type="number" min="1" max="80" value={empForm.weeklyHours} onChange={e=>setEmpForm({...empForm, weeklyHours: e.target.value})} className="w-full p-2 border border-slate-300 rounded text-sm"/>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">{t('emp.fieldVacationDays')}</label>
+                                        <input type="number" min="0" max="99" value={empForm.vacationDays ?? ''} onChange={e=>setEmpForm({...empForm, vacationDays: e.target.value})} placeholder="z.B. 30" className="w-full p-2 border border-slate-300 rounded text-sm"/>
+                                        <p className="text-[11px] text-slate-400 mt-1">{t('emp.vacationDaysHint')}</p>
                                     </div>
                                     <div className="col-span-2">
                                         <label className="block text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">{t('emp.fieldEmail')}</label>

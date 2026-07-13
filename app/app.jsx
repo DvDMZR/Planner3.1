@@ -121,7 +121,7 @@ function App() {
     const [empForm, setEmpForm] = useState({ name: '', category: '', weeklyHours: HOURS_PER_WEEK, email: '', role: '', notes: '', booksOnInvoice: false });
     const [editingEmpId, setEditingEmpId] = useState(null);
     const [isEmpFormOpen, setIsEmpFormOpen] = useState(false);
-    const [projForm, setProjForm] = useState({ name: '', category: '', projectNumber: '', kst: '', address: '', country: '', startWeek: '', ibnWeek: '', color: 'gea', hourlyRate: DEFAULT_HOURLY_RATE, billable: true, projType: '', size: '', sharepointLink: '', notes: '' });
+    const [projForm, setProjForm] = useState({ name: '', category: '', projectNumber: '', kst: '', address: '', country: '', startWeek: '', ibnWeek: '', color: 'gea', hourlyRate: DEFAULT_HOURLY_RATE, billable: true, projType: '', size: '', budget: '', sharepointLink: '', notes: '' });
     const [editingProjectId, setEditingProjectId] = useState(null);
 
     // Category Forms
@@ -370,10 +370,27 @@ function App() {
 
     // SharePoint / FS sync
     const syncStatusRef = useRef(SP_CONTEXT ? 'connecting' : 'local');
+    // Zeitpunkt des letzten Statuswechsels – Grundlage für den Watchdog, der
+    // hängengebliebene Transient-Status (syncing/connecting/reconnecting)
+    // erkennt und auflöst, damit das Poll-Gate nie dauerhaft blockiert.
+    const syncStatusSinceRef = useRef(Date.now());
     const isRemoteUpdateRef = useRef(false);
     const spSaveTimer = useRef(null);
     const [syncStatus, setSyncStatusState] = useState(SP_CONTEXT ? 'connecting' : 'local');
-    const setSyncStatus = (s) => { syncStatusRef.current = s; setSyncStatusState(s); };
+    const setSyncStatus = (s) => {
+        if (syncStatusRef.current !== s) syncStatusSinceRef.current = Date.now();
+        syncStatusRef.current = s;
+        setSyncStatusState(s);
+    };
+    // Letzter erfolgreicher Abgleich mit SharePoint/FS, minutengenau als
+    // Anzeige-String – minutengenau, damit der setState im 5-s-Poll fast
+    // immer ein No-Op ist (React bailt bei identischem Wert aus) und nicht
+    // jede Poll-Runde einen App-Render auslöst.
+    const [lastSyncLabel, setLastSyncLabel] = useState('');
+    const markSyncOk = useCallback(() => {
+        const d = new Date();
+        setLastSyncLabel(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    }, []);
 
     // File System sync (OneDrive lokal)
     const dirHandleRef = useRef(null);
@@ -477,13 +494,21 @@ function App() {
                     if (e instanceof SpAuthError) {
                         // Session expired between page load and our first
                         // REST call – try a silent refresh before giving up.
+                        // spEnsureSession wirft Nicht-Auth-Fehler (Netz, 429)
+                        // weiter – ohne try/catch bliebe der Status dauerhaft
+                        // auf 'reconnecting' und das Poll-Gate stünde still.
                         setSyncStatus('reconnecting');
-                        const ok = await spEnsureSession(SP_CONTEXT, { interactive: false });
+                        let ok = false, refreshError = false;
+                        try { ok = await spEnsureSession(SP_CONTEXT, { interactive: false }); }
+                        catch(e2) { refreshError = true; console.warn('[SP] session refresh failed', e2); }
                         if (ok) {
                             try { await runLoad(); setSyncStatus('idle'); }
-                            catch(e2) { console.warn('[SP] load retry failed', e2); setSyncStatus('needs-auth'); }
+                            catch(e2) {
+                                console.warn('[SP] load retry failed', e2);
+                                setSyncStatus(e2 instanceof SpAuthError ? 'needs-auth' : 'offline');
+                            }
                         } else {
-                            setSyncStatus('needs-auth');
+                            setSyncStatus(refreshError ? 'offline' : 'needs-auth');
                         }
                     } else {
                         console.warn('[SP] load failed', e);
@@ -819,9 +844,23 @@ function App() {
                     if (e instanceof SpConflictError) {
                         conflictRetryRef.current += 1;
                         if (conflictRetryRef.current >= 3) {
+                            // Kein terminaler Zustand mehr (vorher half nur ein
+                            // Seiten-Reload): Remote-Stand einmal komplett
+                            // übernehmen und normal weiterlaufen.
                             spFileEtagsRef.current = {};
                             setSyncStatus('conflict-loop');
-                            showToast('Wiederholte Sync-Konflikte – bitte Seite neu laden.', { type: 'warning', duration: 8000 });
+                            showToast('Wiederholte Sync-Konflikte – Stand vom Server wurde übernommen.', { type: 'warning', duration: 8000 });
+                            try {
+                                const { state, timestamps, etags } = await loadSplitStateSp(SP_CONTEXT);
+                                spFileTimestampsRef.current = timestamps;
+                                spFileEtagsRef.current = stripMetaEtag(etags);
+                                applyRemoteSnapshot(state, { notify: false });
+                                conflictRetryRef.current = 0;
+                                setSyncStatus('idle');
+                            } catch(e2) {
+                                console.warn('[SP] conflict-loop reload failed', e2);
+                                setSyncStatus('offline');
+                            }
                             return;
                         }
                         // Another client modified the file while we were editing.
@@ -848,13 +887,20 @@ function App() {
                         // replay the save exactly once. lastSavedSpRef is only
                         // updated per successful file write, so interrupted
                         // writes are naturally retried on the next save.
+                        // try/catch um spEnsureSession: Nicht-Auth-Fehler dürfen
+                        // den Status nicht auf 'reconnecting' festnageln.
                         setSyncStatus('reconnecting');
-                        const ok = await spEnsureSession(SP_CONTEXT, { interactive: false });
+                        let ok = false, refreshError = false;
+                        try { ok = await spEnsureSession(SP_CONTEXT, { interactive: false }); }
+                        catch(e2) { refreshError = true; console.warn('[SP] session refresh failed', e2); }
                         if (ok) {
                             try { await runSave(); setSyncStatus('idle'); }
-                            catch(e2) { console.warn('[SP] save retry failed', e2); setSyncStatus('needs-auth'); }
+                            catch(e2) {
+                                console.warn('[SP] save retry failed', e2);
+                                setSyncStatus(e2 instanceof SpAuthError ? 'needs-auth' : 'offline');
+                            }
                         } else {
-                            setSyncStatus('needs-auth');
+                            setSyncStatus(refreshError ? 'offline' : 'needs-auth');
                         }
                     } else {
                         console.warn('[SP] save failed', e);
@@ -1331,6 +1377,7 @@ function App() {
                     pollIdleCyclesRef.current++; // quiet cycle → adaptive back-off
                 }
                 pollFailuresRef.current = 0;
+                markSyncOk();
                 // Recover from a prior 'offline' as soon as the next poll
                 // succeeds – no need to wait for a user edit.
                 if (syncStatusRef.current === 'offline') setSyncStatus('idle');
@@ -1339,9 +1386,19 @@ function App() {
                     // Session expired – drive the recovery pipeline. Silent
                     // refresh succeeds while the user's Entra session is
                     // alive, otherwise we surface the manual reconnect CTA.
+                    // try/catch: wirft spEnsureSession einen Nicht-Auth-Fehler
+                    // (Netz, 429 nach Retries), bliebe der Status sonst für
+                    // immer 'reconnecting' und das Gate oben stoppte jeden
+                    // weiteren Poll – Änderungen von Kollegen kämen erst nach
+                    // dem nächsten lokalen Save wieder an.
                     setSyncStatus('reconnecting');
-                    const ok = await spEnsureSession(SP_CONTEXT, { interactive: false });
-                    setSyncStatus(ok ? 'idle' : 'needs-auth');
+                    try {
+                        const ok = await spEnsureSession(SP_CONTEXT, { interactive: false });
+                        setSyncStatus(ok ? 'idle' : 'needs-auth');
+                    } catch(e2) {
+                        console.warn('[SP] session refresh failed', e2);
+                        setSyncStatus('offline');
+                    }
                     pollFailuresRef.current = 0;
                 } else {
                     pollFailuresRef.current += 1;
@@ -1372,6 +1429,16 @@ function App() {
         const onVisible = () => {
             if (document.visibilityState !== 'visible') return;
             pollIdleCyclesRef.current = 0;
+            // Selbstheilung bei abgelaufener Session: War die Entra-Session
+            // beim letzten Versuch tot, ist sie nach einer Tab-Rückkehr oft
+            // wieder da (SSO). Stiller Versuch statt auf den CTA-Klick zu
+            // warten; spSilentAuthInFlight dedupliziert parallele Versuche.
+            if (syncStatusRef.current === 'needs-auth') {
+                spEnsureSession(SP_CONTEXT, { interactive: false })
+                    .then(ok => { if (ok && syncStatusRef.current === 'needs-auth') setSyncStatus('idle'); })
+                    .catch(() => {});
+                return;
+            }
             poll();
         };
         document.addEventListener('visibilitychange', onVisible);
@@ -1398,6 +1465,25 @@ function App() {
         return () => clearTimeout(t);
     }, []);
 
+    // Status-Watchdog: Ein Transient-Status, der länger als 45 s unverändert
+    // steht, ist ein Leck (hängender Fetch, geschluckter Fehler in einem
+    // Recovery-Pfad). Da das Poll-Gate diese Status überspringt, würde ohne
+    // Watchdog dauerhaft nicht mehr gepollt – Kollegen-Änderungen kämen erst
+    // nach dem nächsten lokalen Save an. 'offline' heilt sich beim nächsten
+    // erfolgreichen Poll selbst zu 'idle'.
+    useEffect(() => {
+        if (!SP_CONTEXT) return;
+        const TRANSIENT = ['syncing', 'connecting', 'reconnecting'];
+        const t = setInterval(() => {
+            if (TRANSIENT.includes(syncStatusRef.current)
+                && Date.now() - syncStatusSinceRef.current > 45000) {
+                console.warn('[SP] sync status stuck in', syncStatusRef.current, '– resetting to offline');
+                setSyncStatus('offline');
+            }
+        }, 15000);
+        return () => clearInterval(t);
+    }, []);
+
     // File System polling – Änderungen von Kollegen alle 5 Sek. erkennen.
     useEffect(() => {
         if (!FS_MODE) return;
@@ -1413,6 +1499,7 @@ function App() {
                     fsFileTimestampsRef.current = timestamps;
                     applyRemoteSnapshot(state);
                 }
+                markSyncOk();
             } catch(e) {
                 // Transient errors are expected (file mid-write, handle busy);
                 // still log them so a permanently broken poll is diagnosable.
@@ -1876,7 +1963,7 @@ function App() {
     const openNewProjectForm = useCallback(() => {
         const nextColorId = PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id;
         setEditingProjectId(null);
-        setProjForm({ name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', sharepointLink: '', notes: '' });
+        setProjForm({ name: '', category: projCategories[0] || '', projectNumber: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', budget: '', sharepointLink: '', notes: '' });
         setIsProjFormOpen(true);
     }, [projects.length, projCategories, weeks]);
 
@@ -2136,6 +2223,30 @@ function App() {
         setIsInvoiceModalOpen(true);
     }, [projectById, selectedProjectDetails, assignmentsByProject, costItemsByProject]);
 
+    // Gemeinsamer CSV-Download für alle Ansichten (buildCsv in utils.js
+    // liefert das Excel-kompatible Format des Rechnungs-Exports).
+    const downloadCsv = useCallback((filename, rows) => {
+        const blob = new Blob([buildCsv(rows)], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, []);
+
+    // Export/Versand einer Rechnung markiert das Projekt als 'exportiert'
+    // (Rechnungs-Status-Chip in Projektdetails/-liste, getInvoiceState) und
+    // hinterlässt einen Audit-Eintrag. invoiceExportedAt füttert den Tooltip.
+    const markInvoiceExported = (proj, kind) => {
+        const exportedAt = new Date().toISOString();
+        setProjects(prev => prev.map(p => p.id === proj.id
+            ? { ...p, invoiceStatus: 'exportiert', invoiceExportedAt: exportedAt } : p));
+        logAudit('invoice_export', `Rechnung ${kind}: ${proj.name}`);
+    };
+
     const handleInvoiceExport = () => {
         const proj = projectById.get(selectedProjectDetails);
         if (!proj) return;
@@ -2199,18 +2310,9 @@ function App() {
         // ── Total ───────────────────────────────────────────────
         rows.push(["GESAMT NETTO (EUR)", fmt2(total)]);
 
-        const csvContent = "\uFEFF" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `Rechnung_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        downloadCsv(`Rechnung_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`, rows);
 
-                setProjects(prev => prev.map(p => p.id === selectedProjectDetails ? {...p, invoiceStatus: 'exportiert'} : p));
+        markInvoiceExported(proj, 'als CSV exportiert');
     };
 
     const handleInvoiceSendEmail = () => {
@@ -2305,6 +2407,7 @@ function App() {
         const subject = encodeURIComponent(`Kostenaufstellung: ${proj.name} - ${new Date().toLocaleDateString('de-DE')}`);
         const body = encodeURIComponent(lines.join('\n'));
         window.location.href = `mailto:${encodeURIComponent(invoiceRecipient)}?subject=${subject}&body=${body}`;
+        markInvoiceExported(proj, 'per E-Mail versendet');
     };
 
     // --- SUB-COMPONENTS ---
@@ -2314,7 +2417,7 @@ function App() {
         const isEditing = !!editingProjectId;
         const emptyForm = () => {
             const nextColorId = PROJECT_COLORS[projects.length % PROJECT_COLORS.length].id;
-            return { name: '', category: projCategories[0] || '', projectNumber: '', kst: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', sharepointLink: '', notes: '' };
+            return { name: '', category: projCategories[0] || '', projectNumber: '', kst: '', address: '', country: '', startWeek: weeks[0]?.id || '', ibnWeek: weeks[10]?.id || '', color: nextColorId, projType: '', size: '', budget: '', sharepointLink: '', notes: '' };
         };
         // Inline-Validierung (abgeleitet, kein lokaler State: die Komponente
         // wird inline definiert und remountet bei jedem App-Render).
@@ -2343,11 +2446,15 @@ function App() {
         );
         const save = () => {
             if (!canSave) return;
+            // budget: leeres Feld = kein Budget (null), sonst Zahl – das
+            // Formular hält den Wert als String (kontrollierter Input).
+            const budgetStr = String(projForm.budget ?? '').trim();
+            const payload = { ...projForm, budget: budgetStr === '' ? null : (parseFloat(budgetStr) || 0) };
             if (isEditing) {
-                setProjects(projects.map(p => p.id === editingProjectId ? { ...p, ...projForm } : p));
+                setProjects(projects.map(p => p.id === editingProjectId ? { ...p, ...payload } : p));
                 setEditingProjectId(null);
             } else {
-                setProjects([...projects, { id: makeId('p'), ...projForm, billable: true, hourlyRate: DEFAULT_HOURLY_RATE }]);
+                setProjects([...projects, { id: makeId('p'), ...payload, billable: true, hourlyRate: DEFAULT_HOURLY_RATE }]);
             }
             setProjForm(emptyForm());
             setIsProjFormOpen(false);
@@ -2399,6 +2506,11 @@ function App() {
                             <div>
                                 <label className="block text-xs text-slate-700 mb-1 font-semibold">{t('projForm.size')}</label>
                                 <input type="number" min="0" step="1" value={projForm.size || ''} onChange={e => setProjForm({...projForm, size: e.target.value})} placeholder="z.B. 5" className={fieldCls}/>
+                            </div>
+                            <div className="col-span-2">
+                                <label className="block text-xs text-slate-700 mb-1 font-semibold">{t('projForm.budget')}</label>
+                                <input type="number" min="0" step="100" value={projForm.budget ?? ''} onChange={e => setProjForm({...projForm, budget: e.target.value})} placeholder="z.B. 25000" className={fieldCls}/>
+                                <p className="text-[11px] text-slate-400 mt-1">{t('projForm.budgetHint')}</p>
                             </div>
                         </div>
 
@@ -2709,7 +2821,7 @@ function App() {
         isInvoiceModalOpen, invoiceSelection, invoiceRecipient, isProjFormOpen,
         isHelpModalOpen, timelineYear, empForm, editingEmpId, isEmpFormOpen, projForm,
         editingProjectId, newEmpCat, newProjCat, newBasicTask, newOfftimeTask,
-        expandedSetupCats, syncStatus, fsStatus,
+        expandedSetupCats, syncStatus, fsStatus, lastSyncLabel,
         employeeById, projectById, assignmentsByEmpWeek, assignmentsByProject,
         assignmentsByProjectWeek, costItemsByProject, projectStatusById,
         activeEmployees, activeEmpsByCategory, activeEmpCategories,
@@ -2751,6 +2863,7 @@ function App() {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
+        downloadCsv,
         scrollToCurrentWeek, scrollToWeekById, reconnectSharePoint,
         requestDeleteProject, requestDeleteEmployee,
         openNewProjectForm, openNewEmployeeForm,

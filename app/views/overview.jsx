@@ -36,6 +36,7 @@ const OverviewView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
+        downloadCsv,
         scrollToCurrentWeek, scrollToWeekById, openNewProjectForm } = h;
         const fmt = n => n.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         const currentWeekStr = getWeekString(new Date());
@@ -65,6 +66,26 @@ const OverviewView = ({ s, h }) => {
         const jumpToWeek = (week) => {
             setActiveTab('resource');
             setTimeout(() => scrollToWeekById(resourceScrollRef, timelineWeeks, week, 140), 120);
+        };
+
+        // Fälligkeiten: abgeleitete Aufgaben (fehlende Kosten, alte
+        // Reisekosten, überfällige IBN) – Logik in app/todos.js.
+        const [todosCollapsed, setTodosCollapsed] = React.useState(false);
+        const todos = React.useMemo(() => buildTodos({
+            projects, computeAutoStatus, costItems, employees,
+            currentWeek: currentWeekStr,
+        }), [projects, computeAutoStatus, costItems, employees, currentWeekStr]);
+        const todoLabel = (td) => {
+            switch (td.kind) {
+                case 'missing_costs': return t('todos.missingCosts', { name: td.name });
+                case 'overdue_ibn':   return t('todos.overdueIbn', { name: td.name, week: formatKW(td.week) });
+                default:              return t('todos.staleTravel', { emp: td.empName, amount: td.amount.toFixed(2), week: formatKW(td.week) });
+            }
+        };
+        const todoJump = (td) => {
+            if (td.kind === 'stale_travel') { setActiveTab('travel'); return; }
+            setSelectedProjectDetails(td.projectId);
+            setActiveTab('setup_proj');
         };
 
         const rows = React.useMemo(() => projects.filter(p => ['active', 'planned'].includes(computeAutoStatus(p))).map(p => {
@@ -132,6 +153,37 @@ const OverviewView = ({ s, h }) => {
                         </div>
                     </div>
 
+                    <div className="bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden">
+                        <button onClick={() => setTodosCollapsed(c => !c)}
+                            className="w-full px-5 py-4 flex items-center gap-2 text-left hover:bg-slate-50 transition-colors">
+                            <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('todos.title')}</p>
+                            {todos.length > 0 ? (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold tabular-nums">{todos.length}</span>
+                            ) : (
+                                <span className="text-xs text-emerald-600 font-medium">✓ {t('todos.allDone')}</span>
+                            )}
+                            <span className="ml-auto text-slate-400 text-xs">{todosCollapsed ? '▸' : '▾'}</span>
+                        </button>
+                        {!todosCollapsed && todos.length > 0 && (
+                            <div className="border-t border-slate-100 divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                                {todos.map((td, i) => {
+                                    const dot = td.kind === 'missing_costs' ? 'bg-rose-500'
+                                              : td.kind === 'stale_travel'  ? 'bg-amber-500'
+                                              :                               'bg-sky-500';
+                                    return (
+                                        <button key={`${td.kind}-${td.projectId || td.costItemId || i}`}
+                                            onClick={() => todoJump(td)}
+                                            className="w-full flex items-center gap-2.5 px-5 py-2.5 text-sm text-left text-slate-700 hover:bg-gea-50/50 transition-colors">
+                                            <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`}/>
+                                            <span className="flex-1 min-w-0 truncate">{todoLabel(td)}</span>
+                                            <span className="text-slate-400 text-xs shrink-0">→</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="bg-white border border-slate-300 rounded-xl p-5 shadow-md">
                         <div className="flex items-center justify-between mb-4">
                             <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">{t('overview.utilTrend')}</p>
@@ -160,6 +212,16 @@ const OverviewView = ({ s, h }) => {
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl text-gea-800 font-semibold">{t('overview.title')}</h2>
                         <div className="flex items-center gap-4 text-sm text-slate-500">
+                            <button onClick={() => {
+                                const rowsCsv = [[t('overview.colProject'), t('proj.colNr'), t('overview.colCountry'), t('overview.colStatus'), 'IBN', t('overview.colHours'), t('overview.colLabor'), t('overview.colExtra'), t('overview.colTotal'), t('overview.colBudget')]];
+                                groupedRows.forEach(([cat, catRows]) => catRows.forEach(({ p, totalHours, totalLaborCost, zusatzkosten, gesamtkosten }) => {
+                                    rowsCsv.push([p.name, p.projectNumber || '', resolveCountryCode(p.country), t('status.' + computeAutoStatus(p)), p.ibnWeek || '', totalHours, totalLaborCost.toFixed(2), zusatzkosten.toFixed(2), gesamtkosten.toFixed(2), p.budget != null ? Number(p.budget).toFixed(2) : '']);
+                                }));
+                                downloadCsv(`Uebersicht_${new Date().toISOString().slice(0,10)}.csv`, rowsCsv);
+                            }}
+                                className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-600 hover:border-gea-400 hover:text-gea-600 transition-colors font-medium">
+                                {t('btn.exportCsv')}
+                            </button>
                             <span>{t('overview.projects', { n: rows.length })}</span>
                             <span className="text-slate-300">|</span>
                             <span>{fmt(totalHoursAll)} {t('overview.hoursTotal')}</span>
@@ -179,13 +241,14 @@ const OverviewView = ({ s, h }) => {
                                     <th className="p-4 text-gea-800 font-semibold text-right">{t('overview.colLabor')}</th>
                                     <th className="p-4 text-gea-800 font-semibold text-right">{t('overview.colExtra')}</th>
                                     <th className="p-4 text-gea-800 font-semibold text-right">{t('overview.colTotal')}</th>
+                                    <th className="p-4 text-gea-800 font-semibold text-right whitespace-nowrap">{t('overview.colBudget')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
                                 {groupedRows.map(([cat, catRows]) => (
                                     <React.Fragment key={cat}>
                                         <tr className="bg-slate-50 border-y border-slate-200">
-                                            <td colSpan={8} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">{cat || t('overview.noCategory')}</td>
+                                            <td colSpan={9} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">{cat || t('overview.noCategory')}</td>
                                         </tr>
                                         {catRows.map(({ p, totalHours, totalLaborCost, zusatzkosten, gesamtkosten }) => {
                                             const cc = resolveCountryCode(p.country);
@@ -216,13 +279,28 @@ const OverviewView = ({ s, h }) => {
                                                 <td className="p-4 text-right font-semibold text-slate-900 tabular-nums">
                                                     {gesamtkosten > 0 ? `${fmt(gesamtkosten)} €` : <span className="text-slate-400 font-normal">–</span>}
                                                 </td>
+                                                <td className="p-4 text-right tabular-nums">
+                                                    {(() => {
+                                                        const bu = budgetUsage(p.budget, gesamtkosten);
+                                                        if (!bu) return <span className="text-slate-400">–</span>;
+                                                        const cls = bu.level === 'over' ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                                  : bu.level === 'warn' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                  :                       'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                                        return (
+                                                            <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold ${cls}`}
+                                                                title={`${fmt(gesamtkosten)} € / ${fmt(p.budget)} €`}>
+                                                                {bu.pct}%
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </td>
                                             </tr>
                                             );
                                         })}
                                     </React.Fragment>
                                 ))}
                                 {rows.length === 0 && (
-                                    <tr><td colSpan={8} className="p-0">
+                                    <tr><td colSpan={9} className="p-0">
                                         <EmptyState
                                             icon={<IconBriefcase size={32}/>}
                                             title={t('overview.noProjects')}
@@ -240,6 +318,14 @@ const OverviewView = ({ s, h }) => {
                                         <td className="p-4 text-right font-semibold text-slate-900 tabular-nums">{fmt(rows.reduce((a,r)=>a+r.totalLaborCost,0))} €</td>
                                         <td className="p-4 text-right font-semibold text-slate-900 tabular-nums">{fmt(rows.reduce((a,r)=>a+r.zusatzkosten,0))} €</td>
                                         <td className="p-4 text-right font-bold text-gea-700 tabular-nums">{fmt(totalGesamtkosten)} €</td>
+                                        <td className="p-4 text-right font-semibold text-slate-900 tabular-nums">
+                                            {(() => {
+                                                const withBudget = rows.filter(r => budgetUsage(r.p.budget, r.gesamtkosten));
+                                                if (withBudget.length === 0) return <span className="text-slate-400 font-normal">–</span>;
+                                                const sumBudget = withBudget.reduce((a, r) => a + Number(r.p.budget), 0);
+                                                return `${fmt(sumBudget)} €`;
+                                            })()}
+                                        </td>
                                     </tr>
                                 </tfoot>
                             )}

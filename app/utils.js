@@ -492,3 +492,71 @@ const mergeAuditLogs = (a, b) => {
     out.sort((x, y) => (y.timestamp || '').localeCompare(x.timestamp || ''));
     return out.slice(0, 500);
 };
+
+// Rechnungs-Status eines Projekts ("Prozess 1", Kostenübermittlung ans
+// Auftragszentrum) – abgeleitet statt separat gepflegt, damit er nie mit
+// dem manuellen Häkchen "Kosten eingereicht" kollidiert:
+//   'submitted' – costsSubmitted gesetzt (finaler Zustand)
+//   'exported'  – mindestens einmal CSV-Export/E-Mail-Versand gelaufen
+//                 (invoiceStatus wird dabei gesetzt; Bestandsdaten tragen
+//                 den Legacy-Wert 'exportiert', jeder truthy Wert zählt)
+//   'open'      – noch nichts davon
+const getInvoiceState = (p) => {
+    if (!p) return 'open';
+    if (p.costsSubmitted) return 'submitted';
+    if (p.invoiceStatus) return 'exported';
+    return 'open';
+};
+
+// CSV-Builder (Excel-kompatibel, wie der Rechnungs-Export): BOM für
+// Umlaute, ';' als Trenner (deutsches Excel), alle Zellen gequotet,
+// '"' verdoppelt. rows = Array von Zeilen-Arrays; null/undefined → leer.
+const buildCsv = (rows) =>
+    '\uFEFF' + (rows || []).map(r =>
+        (r || []).map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')
+    ).join('\n');
+
+// Urlaubsverbrauch eines Mitarbeiters in einem Kalenderjahr, in Tagen.
+// Die Planung ist wochenbasiert: eine geplante 'Vacation'-Woche zählt als
+// 5 Arbeitstage abzüglich der deutschen Feiertage, die in dieser Woche auf
+// Mo–Fr fallen. Teilzeit wird bewusst nicht verrechnet – gepflegt sind nur
+// Wochenstunden, nicht Arbeitstage pro Woche. Mehrere Vacation-Einträge in
+// derselben Woche zählen nur einmal.
+const computeVacationDays = (assignments, empId, year) => {
+    const holidays = {
+        ...getGermanHolidays(year - 1),
+        ...getGermanHolidays(year),
+        ...getGermanHolidays(year + 1),
+    };
+    const seenWeeks = new Set();
+    let days = 0;
+    for (const a of assignments || []) {
+        if (!a || a.empId !== empId) continue;
+        if (a.type !== 'offtime' || a.reference !== 'Vacation') continue;
+        const week = String(a.week || '');
+        if (!week.startsWith(year + '-W') || seenWeeks.has(week)) continue;
+        seenWeeks.add(week);
+        const monday = weekIdToMonday(week);
+        let workdayHolidays = 0;
+        for (let i = 0; i < 5; i++) {
+            const d = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + i));
+            const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+            if (holidays[key]) workdayHolidays++;
+        }
+        days += Math.max(0, 5 - workdayHolidays);
+    }
+    return days;
+};
+
+// Budget-Auslastung eines Projekts: Ist-Kosten gegen das optionale
+// Soll-Budget. Ohne gepflegtes/positives Budget → null (keine Anzeige).
+// Ampel-Schwellen: <80% ok, 80–100% warn, >100% over.
+const budgetUsage = (budget, actual) => {
+    const b = typeof budget === 'number' ? budget : parseFloat(budget);
+    if (!Number.isFinite(b) || b <= 0) return null;
+    // Level aus dem ungerundeten Verhältnis: 1 € über Budget ist 'over',
+    // auch wenn die Anzeige auf 100% rundet.
+    const raw = ((actual || 0) / b) * 100;
+    const pct = Math.round(raw);
+    return { pct, level: raw > 100 ? 'over' : raw >= 80 ? 'warn' : 'ok' };
+};

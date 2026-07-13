@@ -22,7 +22,8 @@ const EXPORTS = [
     'getGermanHolidays', 'generateWeeksForYear', 'resolveCountryCode',
     'getAssignmentHours', 'formatKW', 'describeAssignment',
     'compareWeekIds', 'validateRestoredSession', 'validateImportedState',
-    'mergeAuditLogs', 'isValidTeamName',
+    'mergeAuditLogs', 'isValidTeamName', 'getInvoiceState', 'budgetUsage',
+    'computeVacationDays', 'buildCsv',
     'hashPin', 'verifyPin', 'generatePinSalt',
     // datalayer.js
     'migrateCostItem', 'migrateCostItems', 'migrateExpensesToCostItems',
@@ -33,10 +34,12 @@ const EXPORTS = [
     'settlementAmount', 'aggregateSettlement', 'findDuplicateExpenseReport',
     'buildAccountingEmail', 'buildAccountingEmailHtml', 'escapeHtml',
     'findTripSibling', 'moveCostLine',
+    // todos.js
+    'TODO_KIND_ORDER', 'buildTodos',
 ];
 
 function loadApp() {
-    const source = [read('config.js'), read('utils.js'), read('datalayer.js'), read('settlement.js')].join('\n;\n');
+    const source = [read('config.js'), read('utils.js'), read('datalayer.js'), read('settlement.js'), read('todos.js')].join('\n;\n');
     const body = `${source}\n;return { ${EXPORTS.join(', ')} };`;
     // eslint-disable-next-line no-new-func
     return new Function(body)();

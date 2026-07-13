@@ -52,6 +52,7 @@ const _SidebarBase = ({
     expandedSetupCats,
     syncStatus,
     fsStatus,
+    lastSyncLabel,
     employeeById,
     projectById,
     assignmentsByEmpWeek,
@@ -344,23 +345,59 @@ const _SidebarBase = ({
     className: "flex-1 flex items-center gap-2 text-gea-400 hover:text-white text-xs px-2 py-1.5 rounded hover:bg-gea-800 transition-colors"
   }, /*#__PURE__*/React.createElement(IconLogIn, {
     size: 15
-  }), " ", t('auth.login')), langSwitcher)), (SP_CONTEXT || fsStatus === 'connected') && /*#__PURE__*/React.createElement("div", {
-    className: "px-4 py-3 border-t border-gea-700 flex items-center gap-2 shrink-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: `w-2 h-2 rounded-full shrink-0 ${syncStatus === 'idle' ? 'bg-emerald-400' : syncStatus === 'syncing' ? 'bg-amber-400 animate-pulse' : syncStatus === 'updated' ? 'bg-blue-400' : syncStatus === 'conflict-reload' ? 'bg-orange-400' : syncStatus === 'reconnecting' ? 'bg-amber-400 animate-pulse' : syncStatus === 'needs-auth' ? 'bg-rose-500' : syncStatus === 'offline' ? 'bg-rose-500' : 'bg-amber-400 animate-pulse'}`
-  }), syncStatus === 'needs-auth' ? /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: reconnectSharePoint,
-    className: "text-rose-300 hover:text-rose-200 text-xs truncate underline decoration-dotted",
-    title: t('sync.sessionExpiredTitle')
-  }, t('sync.sessionExpired')) : /*#__PURE__*/React.createElement("span", {
-    className: "text-gea-400 text-xs truncate"
-  }, syncStatus === 'idle' ? t('sync.idle') : syncStatus === 'syncing' ? t('sync.syncing') : syncStatus === 'updated' ? t('sync.updated') : syncStatus === 'conflict-reload' ? t('sync.conflictReload') : syncStatus === 'reconnecting' ? t('sync.reconnecting') : syncStatus === 'offline' ? t('sync.offline') : t('sync.connecting'))));
+  }), " ", t('auth.login')), langSwitcher)), (SP_CONTEXT || fsStatus === 'connected') && (() => {
+    // Explizite Status-Map statt Fallback-Kaskade: Ein hier
+    // unbekannter Status (z.B. neu eingeführt und vergessen)
+    // zeigte früher stumm „Verbindet ..." an – jetzt fällt er
+    // per Konsolen-Warnung sofort auf.
+    const SYNC_DOT = {
+      'idle': 'bg-emerald-400',
+      'syncing': 'bg-amber-400 animate-pulse',
+      'updated': 'bg-blue-400',
+      'conflict-reload': 'bg-orange-400',
+      'conflict-loop': 'bg-orange-500 animate-pulse',
+      'connecting': 'bg-amber-400 animate-pulse',
+      'reconnecting': 'bg-amber-400 animate-pulse',
+      'needs-auth': 'bg-rose-500',
+      'offline': 'bg-rose-500'
+    };
+    const SYNC_LABEL_KEY = {
+      'idle': 'sync.idle',
+      'syncing': 'sync.syncing',
+      'updated': 'sync.updated',
+      'conflict-reload': 'sync.conflictReload',
+      'conflict-loop': 'sync.conflictLoop',
+      'connecting': 'sync.connecting',
+      'reconnecting': 'sync.reconnecting',
+      'offline': 'sync.offline'
+    };
+    if (syncStatus !== 'needs-auth' && !SYNC_LABEL_KEY[syncStatus]) {
+      console.warn('[Sidebar] unbekannter syncStatus:', syncStatus);
+    }
+    const lastSyncTitle = lastSyncLabel ? t('sync.lastSync', {
+      time: lastSyncLabel
+    }) : undefined;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "px-4 py-3 border-t border-gea-700 flex items-center gap-2 shrink-0",
+      title: lastSyncTitle
+    }, /*#__PURE__*/React.createElement("div", {
+      className: `w-2 h-2 rounded-full shrink-0 ${SYNC_DOT[syncStatus] || 'bg-slate-400'}`
+    }), syncStatus === 'needs-auth' ? /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: reconnectSharePoint,
+      className: "text-rose-300 hover:text-rose-200 text-xs truncate underline decoration-dotted",
+      title: t('sync.sessionExpiredTitle')
+    }, t('sync.sessionExpired')) : /*#__PURE__*/React.createElement("span", {
+      className: "text-gea-400 text-xs truncate"
+    }, SYNC_LABEL_KEY[syncStatus] ? t(SYNC_LABEL_KEY[syncStatus]) : syncStatus));
+  })());
 };
 
 // Only re-render when sidebar-visible state actually changes (not on every
 // background poll that touches employees/projects/assignments).
-const SidebarView = React.memo(_SidebarBase, (prev, next) => prev.s.activeTab === next.s.activeTab && prev.s.syncStatus === next.s.syncStatus && prev.s.fsStatus === next.s.fsStatus && prev.s.projects === next.s.projects &&
+const SidebarView = React.memo(_SidebarBase, (prev, next) => prev.s.activeTab === next.s.activeTab && prev.s.syncStatus === next.s.syncStatus && prev.s.lastSyncLabel === next.s.lastSyncLabel &&
+// Tooltip „Zuletzt synchronisiert"
+prev.s.fsStatus === next.s.fsStatus && prev.s.projects === next.s.projects &&
 // needed for onClick: setSelectedProject(projects[0])
 prev.s.currentUser === next.s.currentUser &&
 // login/logout

@@ -2,7 +2,7 @@
 const AuditView = ({ s, h }) => {
     const { useState } = React;
     const { currentUser, auditLog, employees, projects, t } = s;
-    const { setAssignments, setEmployees, setProjects, setCostItems, setAuditLog } = h;
+    const { setAssignments, setEmployees, setProjects, setCostItems, setAuditLog, downloadCsv } = h;
 
     const [filter, setFilter] = useState('all'); // 'all' | '7d' | '24h'
     const [undoConfirm, setUndoConfirm] = useState(null); // id of entry being confirmed
@@ -138,6 +138,15 @@ const AuditView = ({ s, h }) => {
                         <p className="text-sm text-slate-500">{t('audit.subtitle')}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
+                        <button onClick={() => {
+                            const rowsCsv = [[t('audit.colTime'), t('audit.colUser'), t('audit.colAction'), t('audit.colDesc')]];
+                            filtered.forEach(e => rowsCsv.push([
+                                new Date(e.timestamp).toLocaleString('de-DE'), e.userName || '', e.action || '', e.description || '']));
+                            downloadCsv(`Verlauf_${new Date().toISOString().slice(0,10)}.csv`, rowsCsv);
+                        }}
+                            className="px-3 py-1.5 text-xs rounded-lg font-medium bg-white border border-slate-300 text-slate-600 hover:border-gea-400 hover:text-gea-600 transition-colors mr-2">
+                            {t('btn.exportCsv')}
+                        </button>
                         {[['all', t('audit.filterAll')], ['7d', t('audit.filter7d')], ['24h', t('audit.filter24h')]].map(([val, label]) => (
                             <button
                                 key={val}

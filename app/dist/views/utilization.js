@@ -133,6 +133,7 @@ const UtilizationView = ({
     importData,
     buildInvoiceData,
     openInvoiceModal,
+    downloadCsv,
     scrollToCurrentWeek
   } = h;
   const visibleWeeks = React.useMemo(() => weeks.slice(0, weeksAhead), [weeks, weeksAhead]);
@@ -241,7 +242,20 @@ const UtilizationView = ({
     className: "text-sm text-slate-500"
   }, t('util.subtitle'))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-3 items-center"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      const rowsCsv = [[t('resource.colEmployee'), 'Team', 'Ø', ...months]];
+      activeCategories.forEach(category => {
+        (activeEmpsByCategory.get(category) || []).filter(matchesEmpSearch).forEach(emp => {
+          const u = utilByEmp.get(emp.id);
+          if (!u) return;
+          rowsCsv.push([emp.name, category, `${u.avgAll}%`, ...months.map(m => u.monthAvgs[m] ? `${u.monthAvgs[m].avg}%` : '')]);
+        });
+      });
+      downloadCsv(`Auslastung_${new Date().toISOString().slice(0, 10)}.csv`, rowsCsv);
+    },
+    className: "text-xs px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-slate-600 hover:border-gea-400 hover:text-gea-600 transition-colors font-medium shrink-0"
+  }, t('btn.exportCsv')), /*#__PURE__*/React.createElement("div", {
     className: "relative"
   }, /*#__PURE__*/React.createElement(IconUsers, {
     size: 14,

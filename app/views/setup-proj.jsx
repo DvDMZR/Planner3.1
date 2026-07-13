@@ -43,7 +43,7 @@ const SetupProjView = ({ s, h }) => {
         }
 
         const handleEditProject = (p) => {
-            setProjForm({ name: p.name, category: p.category || projCategories[0] || '', projectNumber: p.projectNumber || '', kst: p.kst || '', address: p.address || '', country: p.country || '', startWeek: p.startWeek, ibnWeek: p.ibnWeek, color: resolveProjectColor(p.color).id, projType: p.projType || '', size: p.size != null ? String(p.size) : '', sharepointLink: p.sharepointLink || '', notes: p.notes || '' });
+            setProjForm({ name: p.name, category: p.category || projCategories[0] || '', projectNumber: p.projectNumber || '', kst: p.kst || '', address: p.address || '', country: p.country || '', startWeek: p.startWeek, ibnWeek: p.ibnWeek, color: resolveProjectColor(p.color).id, projType: p.projType || '', size: p.size != null ? String(p.size) : '', budget: p.budget != null ? String(p.budget) : '', sharepointLink: p.sharepointLink || '', notes: p.notes || '' });
             setEditingProjectId(p.id);
             setIsProjFormOpen(true);
         };
@@ -137,7 +137,12 @@ const SetupProjView = ({ s, h }) => {
                     <td className="p-3">
                         <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${cc === '??' ? 'bg-rose-50 border-rose-200 text-rose-600' : cc === '/' ? 'bg-slate-50 border-slate-200 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'}`} title={t('proj.colCountry')}>{cc}</span>
                     </td>
-                    <td className="p-3"><StatusBadge status={effStatus} t={t}/></td>
+                    <td className="p-3">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <StatusBadge status={effStatus} t={t}/>
+                            <InvoiceStateChip project={p} t={t}/>
+                        </div>
+                    </td>
                     <td className="p-3 text-slate-600 text-xs">{p.startWeek} – {p.ibnWeek}</td>
                     <td className="p-3 text-right">
                         <div className="flex justify-end items-center gap-2">
@@ -165,6 +170,7 @@ const SetupProjView = ({ s, h }) => {
                         </button>
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <StatusBadge status={effStatus} t={t}/>
+                            <InvoiceStateChip project={p} t={t}/>
                             {p.projType && <span className="text-xs bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded font-medium">{p.projType}</span>}
                             <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${cc === '??' ? 'bg-rose-50 border-rose-200 text-rose-600' : cc === '/' ? 'bg-slate-50 border-slate-200 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'}`} title={t('proj.colCountry')}>{cc}</span>
                             {p.size != null && p.size !== '' && <span className="text-xs text-slate-500">Ø {p.size}</span>}

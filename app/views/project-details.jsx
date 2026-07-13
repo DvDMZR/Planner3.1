@@ -36,6 +36,7 @@ const ProjectDetailsView = ({ s, h }) => {
         toggleCategory, toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
+        downloadCsv,
         scrollToCurrentWeek, showToast,
         setEmpAliases, setFxRates } = h;
         const [isExpenseImportOpen, setIsExpenseImportOpen] = React.useState(false);
@@ -104,6 +105,7 @@ const ProjectDetailsView = ({ s, h }) => {
                     {/* Status + checkboxes */}
                     <div className="flex items-center gap-3 flex-wrap">
                         <StatusBadge status={computeAutoStatus(proj)} t={t}/>
+                        <InvoiceStateChip project={proj} t={t} showOpen={true}/>
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                             <input type="checkbox"
                                 checked={!!proj.projectCompleted}
@@ -119,7 +121,7 @@ const ProjectDetailsView = ({ s, h }) => {
                             <span className="text-sm font-medium text-slate-700">{t('projDetail.costsSubmitted')}</span>
                         </label>
                         <button onClick={() => {
-                            setProjForm({ name: proj.name, category: proj.category || projCategories[0] || '', projectNumber: proj.projectNumber || '', address: proj.address || '', country: proj.country || '', startWeek: proj.startWeek, ibnWeek: proj.ibnWeek, color: resolveProjectColor(proj.color).id, projType: proj.projType || '', size: proj.size != null ? String(proj.size) : '', sharepointLink: proj.sharepointLink || '', notes: proj.notes || '' });
+                            setProjForm({ name: proj.name, category: proj.category || projCategories[0] || '', projectNumber: proj.projectNumber || '', address: proj.address || '', country: proj.country || '', startWeek: proj.startWeek, ibnWeek: proj.ibnWeek, color: resolveProjectColor(proj.color).id, projType: proj.projType || '', size: proj.size != null ? String(proj.size) : '', budget: proj.budget != null ? String(proj.budget) : '', sharepointLink: proj.sharepointLink || '', notes: proj.notes || '' });
                             setEditingProjectId(proj.id);
                             setIsProjFormOpen(true);
                         }} className="bg-white border border-slate-300 hover:bg-gea-50 hover:border-gea-400 text-slate-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors">
@@ -144,9 +146,28 @@ const ProjectDetailsView = ({ s, h }) => {
                     {/* Employee Presence Overview */}
                     {assignedEmpIds.length > 0 && presenceWeeks.length > 0 && (
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                            <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                            <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center gap-3">
                                 <h3 className="text-slate-900 text-base font-medium">{t('projDetail.presence')}</h3>
-                                <span className="text-xs text-slate-400">{presenceWeeks.length} {t('projDetail.weeks')}</span>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => {
+                                        const rowsCsv = [[t('projDetail.colEmployee'), ...presenceWeeks.map(w => 'KW' + w.split('-W')[1]), t('projDetail.colHours')]];
+                                        assignedEmpIds.forEach(empId => {
+                                            const emp = employeeById.get(empId);
+                                            const empAss = assignmentsByEmpId.get(empId) || [];
+                                            const empHours = empAss.reduce((acc, a) => acc + (a.hours ?? (a.percent / 100 * HOURS_PER_WEEK)), 0);
+                                            rowsCsv.push([emp?.name || '?',
+                                                ...presenceWeeks.map(w => {
+                                                    const a = empAss.find(x => x.week === w);
+                                                    return a ? (a.hours ?? Math.round((a.percent ?? 100) / 100 * HOURS_PER_WEEK)) : '';
+                                                }), empHours]);
+                                        });
+                                        downloadCsv(`Anwesenheit_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`, rowsCsv);
+                                    }}
+                                        className="text-xs px-2 py-1 rounded border border-slate-300 bg-white text-slate-500 hover:border-gea-400 hover:text-gea-600 transition-colors font-medium">
+                                        {t('btn.exportCsv')}
+                                    </button>
+                                    <span className="text-xs text-slate-400">{presenceWeeks.length} {t('projDetail.weeks')}</span>
+                                </div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="text-xs border-collapse w-full">
@@ -197,12 +218,34 @@ const ProjectDetailsView = ({ s, h }) => {
 
                     {/* Cost Items Table */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center gap-3">
                             <h3 className="text-slate-900 text-base font-medium">{t('projDetail.costItems')}</h3>
-                            <button onClick={() => { setEditingCostItem(null); setIsCostItemModalOpen(true); }}
-                                className="text-gea-600 text-sm font-medium hover:text-gea-700 flex items-center gap-1">
-                                <IconPlus size={15}/> {t('btn.add')}
-                            </button>
+                            <div className="flex items-center gap-3">
+                                {projCostItems.length > 0 && (
+                                    <button onClick={() => {
+                                        // Eine CSV-Zeile pro Kostenzeile (Posten mit mehreren
+                                        // Zeilen erscheinen mehrfach, Posten-Summe in jeder Zeile).
+                                        const rowsCsv = [[t('projDetail.colEmployee'), t('projDetail.colOccasion'), t('util.kw'), 'Typ', t('projDetail.colAmount'), 'Kommentar', 'Posten-Summe']];
+                                        projCostItems.forEach(ci => {
+                                            const emp = employeeById.get(ci.empId);
+                                            const kwLabel = ci.dateFrom ? getWeekString(new Date(ci.dateFrom)) : (ci.week || '');
+                                            (ci.lines || []).forEach(l => {
+                                                const cfg = COST_LINE_TYPES[l.type] || COST_LINE_TYPES.other;
+                                                rowsCsv.push([emp?.name || '', ci.description || '', kwLabel,
+                                                    cfg.label, (l.amount || 0).toFixed(2), l.comment || '', (ci.amount || 0).toFixed(2)]);
+                                            });
+                                        });
+                                        downloadCsv(`Kostenpunkte_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`, rowsCsv);
+                                    }}
+                                        className="text-xs px-2 py-1 rounded border border-slate-300 bg-white text-slate-500 hover:border-gea-400 hover:text-gea-600 transition-colors font-medium">
+                                        {t('btn.exportCsv')}
+                                    </button>
+                                )}
+                                <button onClick={() => { setEditingCostItem(null); setIsCostItemModalOpen(true); }}
+                                    className="text-gea-600 text-sm font-medium hover:text-gea-700 flex items-center gap-1">
+                                    <IconPlus size={15}/> {t('btn.add')}
+                                </button>
+                            </div>
                         </div>
                         {projCostItems.length === 0 ? (
                             <EmptyState
@@ -311,6 +354,31 @@ const ProjectDetailsView = ({ s, h }) => {
                                 <p className="text-2xl text-gea-800 font-bold tabular-nums">{grandTotal.toFixed(2)} €</p>
                             </div>
                         </div>
+                        {(() => {
+                            const bu = budgetUsage(proj.budget, grandTotal);
+                            if (!bu) return null;
+                            const barColor = bu.level === 'over' ? 'bg-rose-500' : bu.level === 'warn' ? 'bg-amber-500' : 'bg-emerald-500';
+                            const txtColor = bu.level === 'over' ? 'text-rose-600' : bu.level === 'warn' ? 'text-amber-600' : 'text-emerald-600';
+                            return (
+                                <div className="px-6 pb-4">
+                                    <div className="flex items-center justify-between text-sm mb-1.5">
+                                        <span className="text-slate-500 font-medium">{t('budget.label')}</span>
+                                        <span className="tabular-nums text-slate-700">
+                                            {grandTotal.toFixed(2)} € / {Number(proj.budget).toFixed(2)} €
+                                            <span className={`ml-2 font-semibold ${txtColor}`}>{bu.pct}%</span>
+                                        </span>
+                                    </div>
+                                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                                        <div className={`h-full ${barColor} transition-all`} style={{ width: `${Math.min(100, bu.pct)}%` }}></div>
+                                    </div>
+                                    {bu.level === 'over' && (
+                                        <p className="text-xs text-rose-600 mt-1">
+                                            {t('budget.overHint', { amount: (grandTotal - Number(proj.budget)).toFixed(2) })}
+                                        </p>
+                                    )}
+                                </div>
+                            );
+                        })()}
                         <div className="px-6 pb-5 pt-1 flex items-center gap-4 border-t border-slate-100">
                             <label className="flex items-center gap-2 cursor-pointer select-none">
                                 <input type="checkbox" checked={proj.billable !== false}
