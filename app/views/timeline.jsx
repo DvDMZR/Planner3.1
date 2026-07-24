@@ -4,17 +4,16 @@ const TimelineView = ({ s, h }) => {
         empCategories, projCategories, basicTasks, basicTasksMeta,
         inactiveBasicTasks, basicTasksSubTab, offtimeTasks, inactiveOfftimeTasks,
         inactiveSupportTasks, inactiveTrainingTasks, isChangelogOpen,
-        weeks, selectedProject, collapsedCategories, collapsedProjCategories,
+        weeks, selectedProject, collapsedProjCategories,
         collapsedEmpSetup, selectedProjectDetails, weeksAhead,
         isAssignModalOpen, assignContext, isCostItemModalOpen, editingCostItem,
         isCopyModalOpen, copyContext, isDeleteMode, pastProjectsExpanded,
         isInvoiceModalOpen, invoiceSelection, invoiceRecipient, isProjFormOpen,
         isHelpModalOpen, timelineYear, empForm, editingEmpId, projForm,
         editingProjectId, newEmpCat, newProjCat, newBasicTask, newOfftimeTask,
-        expandedSetupCats, syncStatus, fsStatus,
+        expandedSetupCats, syncStatus, fsStatus, projTypes,
         employeeById, projectById, assignmentsByEmpWeek, assignmentsByProject,
         assignmentsByProjectWeek, costItemsByProject, projectStatusById,
-        activeEmployees, activeEmpsByCategory, activeEmpCategories,
         projectsByCategory, projCategoriesFromProjects, timelineWeeks,
         currentWeekColRef, resourceScrollRef, timelineScrollRef,
         t } = s;
@@ -23,7 +22,7 @@ const TimelineView = ({ s, h }) => {
         setBasicTasksMeta, setInactiveBasicTasks, setBasicTasksSubTab,
         setOfftimeTasks, setInactiveOfftimeTasks, setInactiveSupportTasks,
         setInactiveTrainingTasks, setIsChangelogOpen, setSelectedProject,
-        setCollapsedCategories, setCollapsedProjCategories, setCollapsedEmpSetup,
+        setCollapsedProjCategories, setCollapsedEmpSetup,
         setSelectedProjectDetails, setWeeksAhead, setIsAssignModalOpen,
         setAssignContext, setIsCostItemModalOpen, setEditingCostItem,
         setIsCopyModalOpen, setCopyContext, setIsDeleteMode, setPastProjectsExpanded,
@@ -31,9 +30,9 @@ const TimelineView = ({ s, h }) => {
         setIsProjFormOpen, setIsHelpModalOpen, setTimelineYear, setEmpForm,
         setEditingEmpId, setProjForm, setEditingProjectId, setNewEmpCat,
         setNewProjCat, setNewBasicTask, setNewOfftimeTask, setExpandedSetupCats,
-        setSyncStatus, setFsStatus,
+        setSyncStatus, setFsStatus, setIsQuickAssignOpen, setQuickAssignContext,
         getEmpWeeklyHours, computeAutoStatus, getWeeksForYear, getUtilization,
-        toggleCategory, toggleProjCategory, toggleEmpSetup,
+        toggleProjCategory, toggleEmpSetup,
         handleSaveAssignment, handleDeleteAssignment, handleDeleteAssignmentSeries,
         handleDrop, exportData, importData, buildInvoiceData, openInvoiceModal,
         scrollToCurrentWeek } = h;
@@ -118,6 +117,43 @@ const TimelineView = ({ s, h }) => {
         const leftSpacerSpan = safeStart;
         const rightSpacerSpan = Math.max(0, timelineWeeks.length - 1 - safeEnd);
 
+        // Sortierung (global für die ganze Ansicht, kein Sort pro Team) +
+        // Filterleiste (Typ/Land/Status). Vergleichslogik 1:1 aus
+        // setup-proj.jsx übernommen.
+        const [sortKey, setSortKey] = React.useState('');
+        const [sortDir, setSortDir] = React.useState('asc');
+        const [typeFilter, setTypeFilter] = React.useState('all');
+        const [countryFilter, setCountryFilter] = React.useState('all');
+        const [statusFilter, setStatusFilter] = React.useState('all');
+        const selectCls = 'p-2 border border-slate-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gea-400';
+
+        const countryOptions = React.useMemo(
+            () => [...new Set(projects.map(p => resolveCountryCode(p.country)))].sort(),
+            [projects]
+        );
+        const STATUS_FILTER_VALUES = ['planned', 'active', 'missing_costs', 'completed', 'costs_submitted'];
+
+        const sortProjects = (projs) => {
+            if (!sortKey) return projs;
+            return [...projs].sort((a, b) => {
+                let va, vb;
+                if (sortKey === 'name')    { va = (a.name || '').toLowerCase();       vb = (b.name || '').toLowerCase(); }
+                if (sortKey === 'country') { va = resolveCountryCode(a.country);       vb = resolveCountryCode(b.country); }
+                if (sortKey === 'status')  { va = computeAutoStatus(a);                vb = computeAutoStatus(b); }
+                if (sortKey === 'period')  { va = a.startWeek || '';                   vb = b.startWeek || ''; }
+                if (sortKey === 'type')    { va = (a.projType || '').toLowerCase();    vb = (b.projType || '').toLowerCase(); }
+                if (sortKey === 'size')    { va = Number(a.size) || 0;                 vb = Number(b.size) || 0; }
+                if (va < vb) return sortDir === 'asc' ? -1 : 1;
+                if (va > vb) return sortDir === 'asc' ?  1 : -1;
+                return 0;
+            });
+        };
+        const filterProjects = (projs) => projs.filter(p =>
+            (typeFilter === 'all' || p.projType === typeFilter)
+            && (countryFilter === 'all' || resolveCountryCode(p.country) === countryFilter)
+            && (statusFilter === 'all' || computeAutoStatus(p) === statusFilter)
+        );
+
         if (projects.length === 0) {
             const isLoggedIn = !!s.currentUser;
             return (
@@ -135,57 +171,7 @@ const TimelineView = ({ s, h }) => {
         }
 
         return (
-            <div className="flex-1 flex h-full overflow-hidden bg-white">
-                <div className="w-fit min-w-[10rem] max-w-[20rem] border-r border-slate-200 flex flex-col bg-slate-50 shrink-0">
-                    <div className="p-4 border-b border-slate-200 bg-white">
-                        <h3 className="text-slate-900 text-lg font-medium">{t('timeline.employees')}</h3>
-                        <p className="text-xs text-slate-500 mt-1">{t('timeline.dragInstruction')}</p>
-                    </div>
-                    <div className="flex-1 overflow-auto">
-                        {activeEmpCategories.map(category => {
-                            const isCollapsed = collapsedCategories[category];
-                            const catEmps = activeEmpsByCategory.get(category) || [];
-                            
-                            return (
-                                <div key={category} className="border-b border-slate-200 bg-slate-50/80">
-                                    <div 
-                                        onClick={() => toggleCategory(category)}
-                                        className="p-3 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors group"
-                                    >
-                                        <div className="flex items-center gap-2 text-sm uppercase tracking-wider font-medium text-slate-700">
-                                            <span className="text-slate-400 group-hover:text-gea-500 transition-colors">
-                                                {isCollapsed ? <IconChevronRight size={16}/> : <IconChevronDown size={16}/>}
-                                            </span>
-                                            {category}
-                                        </div>
-                                        <span className="text-xs bg-white px-2 py-0.5 rounded-full border border-slate-200 text-slate-500 font-medium shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                                            {catEmps.length}
-                                        </span>
-                                    </div>
-                                    
-                                    {!isCollapsed && (
-                                        <div className="p-3 pt-0 space-y-2 bg-slate-50">
-                                            {catEmps.map(emp => (
-                                                <div 
-                                                    key={emp.id} 
-                                                    draggable
-                                                    onDragStart={(e) => e.dataTransfer.setData('empId', emp.id)}
-                                                    className="p-2.5 bg-white border border-slate-200 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:border-gea-300 transition-colors flex items-center gap-2"
-                                                >
-                                                    <div className="min-w-0">
-                                                        <div className="text-sm text-slate-900 font-medium truncate">{emp.name}</div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
                     <div className="p-4 border-b border-slate-200 bg-white flex justify-between items-center gap-3">
                         <h3 className="text-slate-900 text-lg font-medium shrink-0">{t('timeline.title')}</h3>
                         <div className="flex items-center gap-3 flex-wrap">
@@ -247,7 +233,39 @@ const TimelineView = ({ s, h }) => {
                             </div>}
                         </div>
                     </div>
-                    
+
+                    <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 flex items-center gap-3 flex-wrap">
+                        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className={selectCls}>
+                            <option value="all">{t('timeline.filterAllTypes')}</option>
+                            {(projTypes || []).map(pt => <option key={pt} value={pt}>{pt}</option>)}
+                        </select>
+                        <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} className={selectCls}>
+                            <option value="all">{t('timeline.filterAllCountries')}</option>
+                            {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectCls}>
+                            <option value="all">{t('timeline.filterAllStatuses')}</option>
+                            {STATUS_FILTER_VALUES.map(st => <option key={st} value={st}>{t('status.' + st)}</option>)}
+                        </select>
+                        <div className="flex items-center gap-1.5 ml-auto">
+                            <span className="text-xs text-slate-500">{t('timeline.sortBy')}</span>
+                            <select value={sortKey} onChange={e => setSortKey(e.target.value)} className={selectCls}>
+                                <option value="">{t('timeline.sortDefault')}</option>
+                                <option value="name">{t('proj.colName')}</option>
+                                <option value="type">{t('proj.colType')}</option>
+                                <option value="country">{t('proj.colCountry')}</option>
+                                <option value="status">{t('proj.colStatus')}</option>
+                                <option value="period">{t('proj.colPeriod')}</option>
+                                <option value="size">{t('proj.colSize')}</option>
+                            </select>
+                            <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                                disabled={!sortKey}
+                                className="p-2 border border-slate-300 rounded-md text-sm bg-white text-slate-600 hover:border-gea-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                {sortDir === 'asc' ? '▲' : '▼'}
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="h-0.5 bg-slate-100 shrink-0">
                         <div className="h-full bg-gea-400 transition-all duration-150" style={{width: `${scrollInfo.progress * 100}%`}}/>
                     </div>
@@ -283,7 +301,7 @@ const TimelineView = ({ s, h }) => {
                                     </tr>
                                 ) : activeProjCategories.map(category => {
                                     const isCollapsed = collapsedProjCategories[category];
-                                    const catProjects = projectsByCategory.get(category) || [];
+                                    const catProjects = sortProjects(filterProjects(projectsByCategory.get(category) || []));
                                     if (catProjects.length === 0) return null;
 
                                     return (
@@ -331,11 +349,17 @@ const TimelineView = ({ s, h }) => {
                                                         const projAss = assignmentsByProjectWeek.get(proj.id + '\u0000' + w.id) || [];
                                                         return (
                                                             <td key={w.id}
+                                                                onClick={() => { if (!isDeleteMode) { setQuickAssignContext({ projectId: proj.id, week: w.id }); setIsQuickAssignOpen(true); } }}
                                                                 onDragOver={(e) => { if (!isDeleteMode) e.preventDefault(); }}
                                                                 onDrop={(e) => { if (!isDeleteMode) handleDrop(e, w.id, proj.id); }}
-                                                                className={`p-1 border-b border-r border-slate-300 relative min-w-[120px] align-top transition-colors ${isProjectActive ? (isDeleteMode ? 'bg-rose-50/20' : 'bg-white hover:bg-slate-50') : 'bg-slate-100 opacity-60'}`}
+                                                                className={`p-1 border-b border-r border-slate-300 relative min-w-[120px] align-top transition-colors group/cell ${isDeleteMode ? '' : 'cursor-pointer'} ${isProjectActive ? (isDeleteMode ? 'bg-rose-50/20' : 'bg-white hover:bg-slate-50') : 'bg-slate-100 opacity-60'}`}
                                                             >
-                                                                <div className="flex flex-col gap-1 min-h-[60px]">
+                                                                {projAss.length === 0 && (
+                                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/cell:opacity-100 text-gea-300 transition-opacity">
+                                                                        <IconPlus size={20}/>
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex flex-col gap-1 min-h-[60px] relative z-10">
                                                                     {projAss.map(a => {
                                                                         const emp = employeeById.get(a.empId);
                                                                         const chipHours = a.hours ?? Math.round((a.percent ?? 100) / 100 * HOURS_PER_WEEK);
@@ -377,7 +401,6 @@ const TimelineView = ({ s, h }) => {
                             </tbody>
                         </table>
                     </div>
-                </div>
             </div>
         );
     };

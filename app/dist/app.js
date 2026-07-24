@@ -69,6 +69,11 @@ function App() {
   const [editingCostItem, setEditingCostItem] = useState(null);
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [copyContext, setCopyContext] = useState(null);
+  // Klick auf eine leere Projekt×Woche-Zelle in der Timeline-Ansicht öffnet
+  // dieses Fenster (Team-gruppierte Mehrfachauswahl von Mitarbeitern) statt
+  // der früheren Mitarbeiter-Drag-Leiste.
+  const [isQuickAssignOpen, setIsQuickAssignOpen] = useState(false);
+  const [quickAssignContext, setQuickAssignContext] = useState(null); // { projectId, week }
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [pastProjectsExpanded, setPastProjectsExpanded] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -2079,16 +2084,15 @@ function App() {
   const supportEmpCategories = useMemo(() => Array.from(supportEmpsByCategory.keys()).sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b, 'de')), [supportEmpsByCategory]);
   const hasSupportEmployees = supportEmpIds.size > 0;
 
-  // Projects grouped by category for the planning views (Timeline tab,
-  // Resource project assignments, …). Projects whose ibnWeek has passed
-  // drop out of the planning lists – they remain visible only in the
-  // Verwaltung → Projekte tab (which uses the raw `projects` array) until
-  // an admin sets the "Abgeschlossen" flag.
+  // Projects grouped by category for the planning views (nur timeline.jsx
+  // liest tatsächlich .get(category) daraus, andere Views destrukturieren
+  // die Prop nur mit, ohne sie zu nutzen). Zeigt jeden Status – die
+  // Projekte-Planungsansicht filtert bei Bedarf selbst über den
+  // Status-Filter; früher war hier hart auf active/planned eingeschränkt,
+  // wodurch ein Status-Filter in der UI nichts zu filtern gehabt hätte.
   const projectsByCategory = useMemo(() => {
     const m = new Map();
-    const planningStatuses = new Set(['active', 'planned']);
     projects.forEach(p => {
-      if (!planningStatuses.has(projectStatusById.get(p.id))) return;
       let arr = m.get(p.category);
       if (!arr) {
         arr = [];
@@ -2100,7 +2104,7 @@ function App() {
       arr.sort((a, b) => compareWeekIds(a.startWeek || '', b.startWeek || ''));
     }
     return m;
-  }, [projects, projectStatusById]);
+  }, [projects]);
   const projCategoriesFromProjects = useMemo(() => Array.from(projectsByCategory.keys()).sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b, 'de')), [projectsByCategory]);
 
   // Cache weeks per year – generateWeeksForYear does Easter math + 54
@@ -2450,31 +2454,10 @@ function App() {
           prev: origAss
         });
       }
-      return;
     }
-    const empId = e.dataTransfer.getData('empId');
-    if (!empId) return;
-    if (!isResourceView) {
-      // Default a fresh drag-create to 100 % of the dragged employee's
-      // weekly hours so a 35h employee gets a 35h chip (not 40h).
-      const droppedEmp = employeesRef.current.find(x => x.id === empId);
-      const droppedHours = droppedEmp?.weeklyHours ?? HOURS_PER_WEEK;
-      setAssignments(prev => [...prev, {
-        id: makeId('ass'),
-        empId,
-        week: targetWeek,
-        type: 'project',
-        reference: targetEmpIdOrProjId,
-        hours: droppedHours
-      }]);
-    } else {
-      // In resource view: open modal to pick type/reference
-      setAssignContext({
-        empId: targetEmpIdOrProjId,
-        week: targetWeek
-      });
-      setIsAssignModalOpen(true);
-    }
+    // Kein weiterer Drop-Pfad: das frühere Anlegen per Mitarbeiter-Drag
+    // (dataTransfer 'empId') entfiel mit der Timeline-Drag-Leiste – neue
+    // Zuweisungen entstehen jetzt per Klick über QuickAssignModal.
   }, [logAudit]);
   const exportData = useCallback(() => {
     // Full export: every persisted field, minus user secrets (pin/pinHash/pinSalt).
@@ -3448,6 +3431,8 @@ function App() {
     editingCostItem,
     isCopyModalOpen,
     copyContext,
+    isQuickAssignOpen,
+    quickAssignContext,
     isDeleteMode,
     pastProjectsExpanded,
     isInvoiceModalOpen,
@@ -3537,6 +3522,8 @@ function App() {
     setEditingCostItem,
     setIsCopyModalOpen,
     setCopyContext,
+    setIsQuickAssignOpen,
+    setQuickAssignContext,
     setIsDeleteMode,
     setPastProjectsExpanded,
     setIsInvoiceModalOpen,
@@ -3831,6 +3818,21 @@ function App() {
     onClose: () => {
       setIsCopyModalOpen(false);
       setCopyContext(null);
+    },
+    t: t
+  }), isQuickAssignOpen && quickAssignContext && currentUser && /*#__PURE__*/React.createElement(QuickAssignModal, {
+    context: quickAssignContext,
+    employees: employees,
+    activeEmps: activeEmployees,
+    empsByCategory: activeEmpsByCategory,
+    empCategories: activeEmpCategories,
+    projectById: projectById,
+    assignments: assignments,
+    setAssignments: setAssignments,
+    logAudit: logAudit,
+    onClose: () => {
+      setIsQuickAssignOpen(false);
+      setQuickAssignContext(null);
     },
     t: t
   }), isInvoiceModalOpen && /*#__PURE__*/React.createElement(InvoiceModal, null), isProjFormOpen && ProjFormModal(), isChangelogOpen && /*#__PURE__*/React.createElement("div", {

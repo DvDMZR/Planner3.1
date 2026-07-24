@@ -748,6 +748,160 @@ const CopyModal = ({
     );
 };
 
+// Klick auf eine leere Projekt×Woche-Zelle in der Timeline-Ansicht (ersetzt
+// die frühere Mitarbeiter-Drag-Leiste): Team-gruppierte Mehrfachauswahl,
+// die bei Bestätigen direkt neue Zuweisungen anlegt (kein Folge-Dialog).
+// Feinschliff einzelner Zuweisungen (Stunden, Kommentar, Serie) bleibt wie
+// gehabt über den Klick auf den entstandenen Chip → AssignmentModal.
+// Mitarbeiter-Auswahlblock 1:1 aus CopyModal übernommen, nur ohne
+// Wochen-Mehrfachauswahl (die Woche kommt fix aus `context.week`).
+const QuickAssignModal = ({
+    context,
+    employees,
+    activeEmps,
+    empsByCategory,
+    empCategories,
+    projectById,
+    assignments,
+    setAssignments,
+    logAudit,
+    onClose,
+    t = (k) => k,
+}) => {
+    useEscapeToClose(onClose);
+    const { projectId, week } = context;
+
+    const empById = useMemo(() => {
+        const m = new Map();
+        (employees || []).forEach(e => m.set(e.id, e));
+        return m;
+    }, [employees]);
+
+    const [selEmps, setSelEmps] = useState({});
+    const [error, setError] = useState('');
+    const [collapsedTeams, setCollapsedTeams] = useState(() => {
+        const init = {};
+        (empCategories || []).forEach(cat => { init[cat] = true; });
+        return init;
+    });
+
+    const toggleEmp = (eId) => { setError(''); setSelEmps(prev => ({...prev, [eId]: !prev[eId]})); };
+    const toggleTeam = (cat) => setCollapsedTeams(prev => ({...prev, [cat]: !prev[cat]}));
+    const toggleAllInTeam = (cat) => {
+        const catEmps = empsByCategory?.get(cat) || [];
+        const allSel = catEmps.every(e => selEmps[e.id]);
+        setSelEmps(prev => {
+            const next = {...prev};
+            catEmps.forEach(e => { next[e.id] = !allSel; });
+            return next;
+        });
+    };
+
+    const proj = projectById.get(projectId);
+    const projLabel = proj?.name || projectId;
+
+    const handleAssign = () => {
+        const targetEmps = activeEmps.filter(e => selEmps[e.id]).map(e => e.id);
+        if (targetEmps.length === 0) {
+            setError(t('quickAssign.errorEmp'));
+            return;
+        }
+        setError('');
+        const newAssignments = [];
+        targetEmps.forEach(empId => {
+            const exists = assignments.some(a =>
+                a.empId === empId && a.week === week && a.type === 'project' && a.reference === projectId);
+            if (exists) return;
+            const emp = empById.get(empId);
+            const weeklyHours = emp?.weeklyHours > 0 ? emp.weeklyHours : HOURS_PER_WEEK;
+            newAssignments.push({ id: makeId('ass'), empId, week, type: 'project', reference: projectId, hours: weeklyHours });
+        });
+        if (newAssignments.length > 0) {
+            setAssignments(prev => [...prev, ...newAssignments]);
+            logAudit('assignment_create',
+                `${newAssignments.length}× ${projLabel} zugewiesen (${formatKW(week)})`,
+                { type: 'del_assignments', ids: newAssignments.map(a => a.id) });
+        }
+        onClose();
+    };
+
+    const selEmpCount = Object.values(selEmps).filter(Boolean).length;
+    const useTeams = empsByCategory && empCategories && empCategories.length > 0;
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+                <ModalHeader title={t('quickAssign.title')} subtitle={`${projLabel} · ${formatKW(week)}`} onClose={onClose}/>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    <div>
+                        <h4 className="text-sm font-medium text-slate-700 mb-3">{t('copy.selectEmployees')}</h4>
+                        {useTeams ? (
+                            <div className="space-y-2 border border-slate-200 rounded-lg overflow-hidden">
+                                {empCategories.map(cat => {
+                                    const catEmps = empsByCategory.get(cat) || [];
+                                    if (catEmps.length === 0) return null;
+                                    const isCollapsed = collapsedTeams[cat];
+                                    const selInTeam = catEmps.filter(e => selEmps[e.id]).length;
+                                    const allInTeam = catEmps.every(e => selEmps[e.id]);
+                                    return (
+                                        <div key={cat} className="border-b border-slate-100 last:border-0">
+                                            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors">
+                                                <button onClick={() => toggleTeam(cat)} className="flex items-center gap-2 flex-1 text-left">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-slate-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+                                                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{cat}</span>
+                                                    {selInTeam > 0 && <span className="ml-1 text-xs bg-gea-100 text-gea-700 px-1.5 py-0.5 rounded-full font-medium">{selInTeam}/{catEmps.length}</span>}
+                                                </button>
+                                                <button onClick={() => toggleAllInTeam(cat)} className={`text-xs font-medium px-2 py-0.5 rounded transition-colors ${allInTeam ? 'text-gea-600 hover:text-gea-800' : 'text-slate-500 hover:text-gea-600'}`}>
+                                                    {allInTeam ? t('copy.allDeselect') : t('copy.allSelect')}
+                                                </button>
+                                            </div>
+                                            {!isCollapsed && (
+                                                <div className="flex flex-wrap gap-2 px-3 py-2.5 bg-white">
+                                                    {catEmps.map(e => (
+                                                        <button key={e.id} onClick={() => toggleEmp(e.id)}
+                                                            className={`px-3 py-1.5 rounded-full text-sm border font-medium transition-colors ${selEmps[e.id] ? 'bg-gea-600 text-white border-gea-600' : 'bg-white text-slate-600 border-slate-300 hover:border-gea-400'}`}>
+                                                            {e.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {activeEmps.map(e => (
+                                    <button key={e.id} onClick={() => toggleEmp(e.id)}
+                                        className={`px-3 py-1.5 rounded-full text-sm border font-medium transition-colors ${selEmps[e.id] ? 'bg-gea-600 text-white border-gea-600' : 'bg-white text-slate-600 border-slate-300 hover:border-gea-400'}`}>
+                                        {e.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center gap-3">
+                    {error ? (
+                        <span className="text-xs text-rose-600 font-medium flex items-center gap-1.5">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            {error}
+                        </span>
+                    ) : (
+                        <span className="text-xs text-slate-400">{t('quickAssign.stats', { n: selEmpCount })}</span>
+                    )}
+                    <div className="flex gap-2 shrink-0">
+                        <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 font-medium">{t('btn.cancel')}</button>
+                        <button onClick={handleAssign} className="px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium flex items-center gap-2">
+                            <IconPlus size={15}/> {t('quickAssign.confirmBtn')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const CostItemModal = ({
     projectId,

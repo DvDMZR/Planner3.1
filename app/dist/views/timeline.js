@@ -23,7 +23,6 @@ const TimelineView = ({
     isChangelogOpen,
     weeks,
     selectedProject,
-    collapsedCategories,
     collapsedProjCategories,
     collapsedEmpSetup,
     selectedProjectDetails,
@@ -53,6 +52,7 @@ const TimelineView = ({
     expandedSetupCats,
     syncStatus,
     fsStatus,
+    projTypes,
     employeeById,
     projectById,
     assignmentsByEmpWeek,
@@ -60,9 +60,6 @@ const TimelineView = ({
     assignmentsByProjectWeek,
     costItemsByProject,
     projectStatusById,
-    activeEmployees,
-    activeEmpsByCategory,
-    activeEmpCategories,
     projectsByCategory,
     projCategoriesFromProjects,
     timelineWeeks,
@@ -89,7 +86,6 @@ const TimelineView = ({
     setInactiveTrainingTasks,
     setIsChangelogOpen,
     setSelectedProject,
-    setCollapsedCategories,
     setCollapsedProjCategories,
     setCollapsedEmpSetup,
     setSelectedProjectDetails,
@@ -119,11 +115,12 @@ const TimelineView = ({
     setExpandedSetupCats,
     setSyncStatus,
     setFsStatus,
+    setIsQuickAssignOpen,
+    setQuickAssignContext,
     getEmpWeeklyHours,
     computeAutoStatus,
     getWeeksForYear,
     getUtilization,
-    toggleCategory,
     toggleProjCategory,
     toggleEmpSetup,
     handleSaveAssignment,
@@ -220,6 +217,52 @@ const TimelineView = ({
   const visibleWeeks = React.useMemo(() => timelineWeeks.slice(safeStart, safeEnd + 1), [timelineWeeks, safeStart, safeEnd]);
   const leftSpacerSpan = safeStart;
   const rightSpacerSpan = Math.max(0, timelineWeeks.length - 1 - safeEnd);
+
+  // Sortierung (global für die ganze Ansicht, kein Sort pro Team) +
+  // Filterleiste (Typ/Land/Status). Vergleichslogik 1:1 aus
+  // setup-proj.jsx übernommen.
+  const [sortKey, setSortKey] = React.useState('');
+  const [sortDir, setSortDir] = React.useState('asc');
+  const [typeFilter, setTypeFilter] = React.useState('all');
+  const [countryFilter, setCountryFilter] = React.useState('all');
+  const [statusFilter, setStatusFilter] = React.useState('all');
+  const selectCls = 'p-2 border border-slate-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gea-400';
+  const countryOptions = React.useMemo(() => [...new Set(projects.map(p => resolveCountryCode(p.country)))].sort(), [projects]);
+  const STATUS_FILTER_VALUES = ['planned', 'active', 'missing_costs', 'completed', 'costs_submitted'];
+  const sortProjects = projs => {
+    if (!sortKey) return projs;
+    return [...projs].sort((a, b) => {
+      let va, vb;
+      if (sortKey === 'name') {
+        va = (a.name || '').toLowerCase();
+        vb = (b.name || '').toLowerCase();
+      }
+      if (sortKey === 'country') {
+        va = resolveCountryCode(a.country);
+        vb = resolveCountryCode(b.country);
+      }
+      if (sortKey === 'status') {
+        va = computeAutoStatus(a);
+        vb = computeAutoStatus(b);
+      }
+      if (sortKey === 'period') {
+        va = a.startWeek || '';
+        vb = b.startWeek || '';
+      }
+      if (sortKey === 'type') {
+        va = (a.projType || '').toLowerCase();
+        vb = (b.projType || '').toLowerCase();
+      }
+      if (sortKey === 'size') {
+        va = Number(a.size) || 0;
+        vb = Number(b.size) || 0;
+      }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+  const filterProjects = projs => projs.filter(p => (typeFilter === 'all' || p.projType === typeFilter) && (countryFilter === 'all' || resolveCountryCode(p.country) === countryFilter) && (statusFilter === 'all' || computeAutoStatus(p) === statusFilter));
   if (projects.length === 0) {
     const isLoggedIn = !!s.currentUser;
     return /*#__PURE__*/React.createElement("div", {
@@ -237,50 +280,7 @@ const TimelineView = ({
     }));
   }
   return /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 flex h-full overflow-hidden bg-white"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-fit min-w-[10rem] max-w-[20rem] border-r border-slate-200 flex flex-col bg-slate-50 shrink-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "p-4 border-b border-slate-200 bg-white"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-slate-900 text-lg font-medium"
-  }, t('timeline.employees')), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-slate-500 mt-1"
-  }, t('timeline.dragInstruction'))), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 overflow-auto"
-  }, activeEmpCategories.map(category => {
-    const isCollapsed = collapsedCategories[category];
-    const catEmps = activeEmpsByCategory.get(category) || [];
-    return /*#__PURE__*/React.createElement("div", {
-      key: category,
-      className: "border-b border-slate-200 bg-slate-50/80"
-    }, /*#__PURE__*/React.createElement("div", {
-      onClick: () => toggleCategory(category),
-      className: "p-3 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors group"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2 text-sm uppercase tracking-wider font-medium text-slate-700"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-slate-400 group-hover:text-gea-500 transition-colors"
-    }, isCollapsed ? /*#__PURE__*/React.createElement(IconChevronRight, {
-      size: 16
-    }) : /*#__PURE__*/React.createElement(IconChevronDown, {
-      size: 16
-    })), category), /*#__PURE__*/React.createElement("span", {
-      className: "text-xs bg-white px-2 py-0.5 rounded-full border border-slate-200 text-slate-500 font-medium shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"
-    }, catEmps.length)), !isCollapsed && /*#__PURE__*/React.createElement("div", {
-      className: "p-3 pt-0 space-y-2 bg-slate-50"
-    }, catEmps.map(emp => /*#__PURE__*/React.createElement("div", {
-      key: emp.id,
-      draggable: true,
-      onDragStart: e => e.dataTransfer.setData('empId', emp.id),
-      className: "p-2.5 bg-white border border-slate-200 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:border-gea-300 transition-colors flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "min-w-0"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-sm text-slate-900 font-medium truncate"
-    }, emp.name))))));
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 flex flex-col overflow-hidden"
+    className: "flex-1 flex flex-col h-full overflow-hidden bg-white"
   }, /*#__PURE__*/React.createElement("div", {
     className: "p-4 border-b border-slate-200 bg-white flex justify-between items-center gap-3"
   }, /*#__PURE__*/React.createElement("h3", {
@@ -364,6 +364,61 @@ const TimelineView = ({
   }), /*#__PURE__*/React.createElement("span", null, t('btn.deleteMode')), isDeleteMode && /*#__PURE__*/React.createElement("span", {
     className: "ml-auto w-2 h-2 rounded-full bg-rose-500 shrink-0"
   })))))), /*#__PURE__*/React.createElement("div", {
+    className: "px-4 py-2 border-b border-slate-200 bg-slate-50 flex items-center gap-3 flex-wrap"
+  }, /*#__PURE__*/React.createElement("select", {
+    value: typeFilter,
+    onChange: e => setTypeFilter(e.target.value),
+    className: selectCls
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, t('timeline.filterAllTypes')), (projTypes || []).map(pt => /*#__PURE__*/React.createElement("option", {
+    key: pt,
+    value: pt
+  }, pt))), /*#__PURE__*/React.createElement("select", {
+    value: countryFilter,
+    onChange: e => setCountryFilter(e.target.value),
+    className: selectCls
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, t('timeline.filterAllCountries')), countryOptions.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c,
+    value: c
+  }, c))), /*#__PURE__*/React.createElement("select", {
+    value: statusFilter,
+    onChange: e => setStatusFilter(e.target.value),
+    className: selectCls
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, t('timeline.filterAllStatuses')), STATUS_FILTER_VALUES.map(st => /*#__PURE__*/React.createElement("option", {
+    key: st,
+    value: st
+  }, t('status.' + st)))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1.5 ml-auto"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-slate-500"
+  }, t('timeline.sortBy')), /*#__PURE__*/React.createElement("select", {
+    value: sortKey,
+    onChange: e => setSortKey(e.target.value),
+    className: selectCls
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, t('timeline.sortDefault')), /*#__PURE__*/React.createElement("option", {
+    value: "name"
+  }, t('proj.colName')), /*#__PURE__*/React.createElement("option", {
+    value: "type"
+  }, t('proj.colType')), /*#__PURE__*/React.createElement("option", {
+    value: "country"
+  }, t('proj.colCountry')), /*#__PURE__*/React.createElement("option", {
+    value: "status"
+  }, t('proj.colStatus')), /*#__PURE__*/React.createElement("option", {
+    value: "period"
+  }, t('proj.colPeriod')), /*#__PURE__*/React.createElement("option", {
+    value: "size"
+  }, t('proj.colSize'))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSortDir(d => d === 'asc' ? 'desc' : 'asc'),
+    disabled: !sortKey,
+    className: "p-2 border border-slate-300 rounded-md text-sm bg-white text-slate-600 hover:border-gea-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+  }, sortDir === 'asc' ? '▲' : '▼'))), /*#__PURE__*/React.createElement("div", {
     className: "h-0.5 bg-slate-100 shrink-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "h-full bg-gea-400 transition-all duration-150",
@@ -413,7 +468,7 @@ const TimelineView = ({
     className: "p-8 text-center text-slate-400"
   }, t('timeline.noProjects'))) : activeProjCategories.map(category => {
     const isCollapsed = collapsedProjCategories[category];
-    const catProjects = projectsByCategory.get(category) || [];
+    const catProjects = sortProjects(filterProjects(projectsByCategory.get(category) || []));
     if (catProjects.length === 0) return null;
     return /*#__PURE__*/React.createElement(React.Fragment, {
       key: category
@@ -479,15 +534,28 @@ const TimelineView = ({
         const projAss = assignmentsByProjectWeek.get(proj.id + '\u0000' + w.id) || [];
         return /*#__PURE__*/React.createElement("td", {
           key: w.id,
+          onClick: () => {
+            if (!isDeleteMode) {
+              setQuickAssignContext({
+                projectId: proj.id,
+                week: w.id
+              });
+              setIsQuickAssignOpen(true);
+            }
+          },
           onDragOver: e => {
             if (!isDeleteMode) e.preventDefault();
           },
           onDrop: e => {
             if (!isDeleteMode) handleDrop(e, w.id, proj.id);
           },
-          className: `p-1 border-b border-r border-slate-300 relative min-w-[120px] align-top transition-colors ${isProjectActive ? isDeleteMode ? 'bg-rose-50/20' : 'bg-white hover:bg-slate-50' : 'bg-slate-100 opacity-60'}`
-        }, /*#__PURE__*/React.createElement("div", {
-          className: "flex flex-col gap-1 min-h-[60px]"
+          className: `p-1 border-b border-r border-slate-300 relative min-w-[120px] align-top transition-colors group/cell ${isDeleteMode ? '' : 'cursor-pointer'} ${isProjectActive ? isDeleteMode ? 'bg-rose-50/20' : 'bg-white hover:bg-slate-50' : 'bg-slate-100 opacity-60'}`
+        }, projAss.length === 0 && /*#__PURE__*/React.createElement("div", {
+          className: "absolute inset-0 flex items-center justify-center opacity-0 group-hover/cell:opacity-100 text-gea-300 transition-opacity"
+        }, /*#__PURE__*/React.createElement(IconPlus, {
+          size: 20
+        })), /*#__PURE__*/React.createElement("div", {
+          className: "flex flex-col gap-1 min-h-[60px] relative z-10"
         }, projAss.map(a => {
           const emp = employeeById.get(a.empId);
           const chipHours = a.hours ?? Math.round((a.percent ?? 100) / 100 * HOURS_PER_WEEK);
@@ -542,5 +610,5 @@ const TimelineView = ({
         className: "border-b border-r border-slate-300 bg-white"
       }));
     }));
-  }))))));
+  })))));
 };

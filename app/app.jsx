@@ -67,6 +67,11 @@ function App() {
 
     const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
     const [copyContext, setCopyContext] = useState(null);
+    // Klick auf eine leere Projekt×Woche-Zelle in der Timeline-Ansicht öffnet
+    // dieses Fenster (Team-gruppierte Mehrfachauswahl von Mitarbeitern) statt
+    // der früheren Mitarbeiter-Drag-Leiste.
+    const [isQuickAssignOpen, setIsQuickAssignOpen] = useState(false);
+    const [quickAssignContext, setQuickAssignContext] = useState(null); // { projectId, week }
     const [isDeleteMode, setIsDeleteMode] = useState(false);
     const [pastProjectsExpanded, setPastProjectsExpanded] = useState(false);
 
@@ -1728,16 +1733,15 @@ function App() {
 
     const hasSupportEmployees = supportEmpIds.size > 0;
 
-    // Projects grouped by category for the planning views (Timeline tab,
-    // Resource project assignments, …). Projects whose ibnWeek has passed
-    // drop out of the planning lists – they remain visible only in the
-    // Verwaltung → Projekte tab (which uses the raw `projects` array) until
-    // an admin sets the "Abgeschlossen" flag.
+    // Projects grouped by category for the planning views (nur timeline.jsx
+    // liest tatsächlich .get(category) daraus, andere Views destrukturieren
+    // die Prop nur mit, ohne sie zu nutzen). Zeigt jeden Status – die
+    // Projekte-Planungsansicht filtert bei Bedarf selbst über den
+    // Status-Filter; früher war hier hart auf active/planned eingeschränkt,
+    // wodurch ein Status-Filter in der UI nichts zu filtern gehabt hätte.
     const projectsByCategory = useMemo(() => {
         const m = new Map();
-        const planningStatuses = new Set(['active', 'planned']);
         projects.forEach(p => {
-            if (!planningStatuses.has(projectStatusById.get(p.id))) return;
             let arr = m.get(p.category);
             if (!arr) { arr = []; m.set(p.category, arr); }
             arr.push(p);
@@ -1746,7 +1750,7 @@ function App() {
             arr.sort((a, b) => compareWeekIds(a.startWeek || '', b.startWeek || ''));
         }
         return m;
-    }, [projects, projectStatusById]);
+    }, [projects]);
 
     const projCategoriesFromProjects = useMemo(
         () => Array.from(projectsByCategory.keys()).sort((a, b) =>
@@ -2061,28 +2065,10 @@ function App() {
                     `${draggedTask} – ${empPart} (${weekPart})`,
                     { type: 'restore_assignment', prev: origAss });
             }
-            return;
         }
-        const empId = e.dataTransfer.getData('empId');
-        if (!empId) return;
-        if (!isResourceView) {
-            // Default a fresh drag-create to 100 % of the dragged employee's
-            // weekly hours so a 35h employee gets a 35h chip (not 40h).
-            const droppedEmp = employeesRef.current.find(x => x.id === empId);
-            const droppedHours = droppedEmp?.weeklyHours ?? HOURS_PER_WEEK;
-            setAssignments(prev => [...prev, {
-                id: makeId('ass'),
-                empId,
-                week: targetWeek,
-                type: 'project',
-                reference: targetEmpIdOrProjId,
-                hours: droppedHours
-            }]);
-        } else {
-            // In resource view: open modal to pick type/reference
-            setAssignContext({ empId: targetEmpIdOrProjId, week: targetWeek });
-            setIsAssignModalOpen(true);
-        }
+        // Kein weiterer Drop-Pfad: das frühere Anlegen per Mitarbeiter-Drag
+        // (dataTransfer 'empId') entfiel mit der Timeline-Drag-Leiste – neue
+        // Zuweisungen entstehen jetzt per Klick über QuickAssignModal.
     }, [logAudit]);
 
     const exportData = useCallback(() => {
@@ -2817,7 +2803,8 @@ function App() {
         weeks, selectedProject, collapsedCategories, collapsedProjCategories,
         collapsedEmpSetup, selectedProjectDetails, weeksAhead,
         isAssignModalOpen, assignContext, isCostItemModalOpen, editingCostItem,
-        isCopyModalOpen, copyContext, isDeleteMode, pastProjectsExpanded,
+        isCopyModalOpen, copyContext, isQuickAssignOpen, quickAssignContext,
+        isDeleteMode, pastProjectsExpanded,
         isInvoiceModalOpen, invoiceSelection, invoiceRecipient, isProjFormOpen,
         isHelpModalOpen, timelineYear, empForm, editingEmpId, isEmpFormOpen, projForm,
         editingProjectId, newEmpCat, newProjCat, newBasicTask, newOfftimeTask,
@@ -2844,7 +2831,8 @@ function App() {
         setCollapsedCategories, setCollapsedProjCategories, setCollapsedEmpSetup,
         setSelectedProjectDetails, setWeeksAhead, setIsAssignModalOpen,
         setAssignContext, setIsCostItemModalOpen, setEditingCostItem,
-        setIsCopyModalOpen, setCopyContext, setIsDeleteMode, setPastProjectsExpanded,
+        setIsCopyModalOpen, setCopyContext, setIsQuickAssignOpen, setQuickAssignContext,
+        setIsDeleteMode, setPastProjectsExpanded,
         setIsInvoiceModalOpen, setInvoiceSelection, setInvoiceRecipient,
         setIsProjFormOpen, setIsHelpModalOpen, setIsCommandPaletteOpen, setTimelineYear, setEmpForm,
         setEditingEmpId, setIsEmpFormOpen, setProjForm, setEditingProjectId, setNewEmpCat,
@@ -2999,6 +2987,21 @@ function App() {
                     assignments={assignments}
                     setAssignments={setAssignments}
                     onClose={() => { setIsCopyModalOpen(false); setCopyContext(null); }}
+                    t={t}
+                />
+            )}
+            {isQuickAssignOpen && quickAssignContext && currentUser && (
+                <QuickAssignModal
+                    context={quickAssignContext}
+                    employees={employees}
+                    activeEmps={activeEmployees}
+                    empsByCategory={activeEmpsByCategory}
+                    empCategories={activeEmpCategories}
+                    projectById={projectById}
+                    assignments={assignments}
+                    setAssignments={setAssignments}
+                    logAudit={logAudit}
+                    onClose={() => { setIsQuickAssignOpen(false); setQuickAssignContext(null); }}
                     t={t}
                 />
             )}

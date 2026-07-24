@@ -5,7 +5,7 @@ bewusst zurückgestellt und warum. Ersetzt die vormals getrennten Dateien
 `CODE_REVIEW.md`, `docs/SECURITY.md` und `docs/SYNC-OPTIMIERUNG.md` (deren Inhalt
 ist hier eingearbeitet und aktualisiert).
 
-Stand: 2026-07-12, App-Version v0.93.
+Stand: 2026-07-16, App-Version v0.94.
 
 ---
 
@@ -193,6 +193,21 @@ sehr hoher Edit-Frequenz zuerst Pre-Save-Freshness-Check nachrüsten, danach
   `TODO_AGE_WEEKS` in `config.js`).
 - **CSV-Export** in Übersicht, Auslastung, Projektdetails, Reisekosten, Verlauf
   (`buildCsv` in `app/utils.js`, `downloadCsv`-Handler in `app.jsx`).
+
+### Umgesetzt (2026-07-16, v0.94)
+- **Projekte-Planung: Klick statt Drag-Leiste.** Die Mitarbeiter-Drag-Leiste in
+  `app/views/timeline.jsx` ist entfallen (Zeilen bleiben Projekte). Klick auf
+  eine leere Projekt×Woche-Zelle öffnet `QuickAssignModal` (`app/modals.jsx`,
+  Team-gruppierte Mehrfachauswahl, optisch wie `CopyModal`); legt bei
+  Bestätigen direkt neue Zuweisungen an (100 % Wochenstunden je Mitarbeiter,
+  Dedupe gegen bestehende). Bestehende Chips bleiben per Drag verschiebbar;
+  der tote `empId`-Drag-Zweig in `handleDrop` (`app.jsx`) wurde entfernt.
+- **Sortierung** (Name/Typ/Land/Status/Start/Größe, global statt pro Team)
+  und **Filterleiste** (Typ/Land/Status) in der Projekte-Planungsansicht,
+  analog zu Verwaltung/Projekte bzw. Verwaltung/Reisekosten.
+- **Status-Umfang geweitet:** `projectsByCategory` (`app.jsx`) zeigt jetzt
+  Projekte in jedem Status (vorher hart auf `active`/`planned` beschränkt) —
+  macht den neuen Status-Filter erst sinnvoll nutzbar.
 
 ### Ideen-Backlog aus dem Funktionskatalog (2026-07-12, noch nicht beauftragt)
 - Jahres-/Management-Report über ALLE Projekte (inkl. abgeschlossener),

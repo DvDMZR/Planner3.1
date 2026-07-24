@@ -1,5 +1,5 @@
 // ─── TEAM-SPLIT FILE LAYOUT ───────────────────────────────────────────────────
-const APP_VERSION = 'v0.93';
+const APP_VERSION = 'v0.94';
 const DEFAULT_TEAMS = ['AS', 'CMS', 'CSS', 'HM', 'I&C', 'Other'];
 const PLANNER_DATA_DIR = 'planner-data';
 const SCHEMA_VERSION = 4;
@@ -77,6 +77,22 @@ const ensureAdmin = async (users) => {
 
 // --- CHANGELOG ---
 const CHANGELOG_CONTENT = `# Changelog
+
+## v0.94 (2026-07-16)
+
+### Projekte-Planung: Klick statt Ziehen, Sortierung, Filterleiste
+- Die Mitarbeiter-Drag-Leiste in der Projekte-Planungsansicht ist entfallen.
+  Klick auf eine leere Projekt×Woche-Zelle öffnet stattdessen ein Fenster
+  mit Team-gruppierter Mehrfachauswahl (mehrere Mitarbeiter auf einen Klick
+  einplanen) – optisch wie das bekannte "Kopieren"-Fenster aus der
+  Ressourcenplanung. Bestehende Zuweisungen lassen sich weiterhin per Drag
+  auf andere Wochen/Projekte verschieben; Feinschliff (Stunden, Kommentar,
+  Serie) bleibt über den Klick auf den Chip erreichbar.
+- Neue Sortierung (Name/Typ/Land/Status/Start/Größe) und Filterleiste
+  (Typ/Land/Status) oberhalb der Tabelle, analog zu Verwaltung/Projekte
+  bzw. Verwaltung/Reisekosten.
+- Die Ansicht zeigt jetzt Projekte in jedem Status (vorher nur "Fängt noch
+  an"/"Angefangen") – der neue Status-Filter blendet bei Bedarf ein/aus.
 
 ## v0.93 (2026-07-12)
 
