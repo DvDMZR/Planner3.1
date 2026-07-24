@@ -1,5 +1,5 @@
 // ─── TEAM-SPLIT FILE LAYOUT ───────────────────────────────────────────────────
-const APP_VERSION = 'v0.94';
+const APP_VERSION = 'v0.95';
 const DEFAULT_TEAMS = ['AS', 'CMS', 'CSS', 'HM', 'I&C', 'Other'];
 const PLANNER_DATA_DIR = 'planner-data';
 const SCHEMA_VERSION = 4;
@@ -77,6 +77,23 @@ const ensureAdmin = async (users) => {
 
 // --- CHANGELOG ---
 const CHANGELOG_CONTENT = `# Changelog
+
+## v0.95 (2026-07-18)
+
+### Reisekosten-Übermittlung: Kopieren deutlicher hervorgehoben
+- Der "Tabelle kopieren"-Button im Sende-Dialog an die Buchhaltung ist jetzt
+  optisch hervorgehoben (Rahmen/Hintergrund), dazu ein immer sichtbarer
+  Hinweis: erst hier klicken, dann mit Strg+V (⌘V) direkt in die E-Mail
+  einfügen – dort erscheint eine fertig formatierte Tabelle.
+- Die kopierte (und versendete) Tabelle zeigt jetzt zusätzlich Projektname
+  und Kalenderwoche je Posten.
+
+### Neu: Kopierfunktion auch bei "Rechnung erstellen"
+- Der Rechnungsdialog in den Projektdetails hat jetzt denselben
+  "Tabelle kopieren"-Button samt Hinweis: Personal- und Zusatzkosten lassen
+  sich als formatierte HTML-Tabelle in die Zwischenablage kopieren und in
+  eine E-Mail einfügen – wahlweise als Kurzfassung oder Detailansicht
+  (folgt der bestehenden Zusammenfassen/Detailliert-Einstellung).
 
 ## v0.94 (2026-07-16)
 

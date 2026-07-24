@@ -2722,14 +2722,12 @@ function App() {
     downloadCsv(`Rechnung_${proj.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`, rows);
     markInvoiceExported(proj, 'als CSV exportiert');
   };
-  const handleInvoiceSendEmail = () => {
-    const proj = projectById.get(selectedProjectDetails);
-    if (!proj) return;
-    const {
-      laborLines,
-      costLines,
-      total
-    } = buildInvoiceData(proj, invoiceSelection);
+
+  // Klartext-Mailbody f\u00fcr "Rechnung erstellen" (Personal-/Zusatzkosten je nach
+  // summaryMode zusammengefasst oder detailliert). Ausgelagert aus
+  // handleInvoiceSendEmail, damit sowohl der Mailto-Versand als auch die
+  // Tabellen-Kopierfunktion (buildInvoiceHtml) dieselbe Struktur teilen.
+  const buildInvoiceEmailText = (proj, laborLines, costLines, total, summaryMode) => {
     const fmt2 = n => n.toFixed(2);
     const cc = resolveCountryCode(proj.country);
     const sep = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
@@ -2756,7 +2754,6 @@ function App() {
     }
     lines.push(`Datum:         ${new Date().toLocaleDateString('de-DE')}`);
     lines.push('');
-    const summaryMode = invoiceEmailMode === 'summary';
 
     // Labor
     const includedLabor = laborLines.filter(l => l.included);
@@ -2818,9 +2815,131 @@ function App() {
     lines.push(sep);
     lines.push('');
     lines.push('Mit freundlichen Gruessen');
-    const subject = encodeURIComponent(`Kostenaufstellung: ${proj.name} - ${new Date().toLocaleDateString('de-DE')}`);
-    const body = encodeURIComponent(lines.join('\n'));
-    window.location.href = `mailto:${encodeURIComponent(invoiceRecipient)}?subject=${subject}&body=${body}`;
+    return {
+      subject: `Kostenaufstellung: ${proj.name} - ${new Date().toLocaleDateString('de-DE')}`,
+      body: lines.join('\n')
+    };
+  };
+
+  // HTML-Tabellen-Variante von buildInvoiceEmailText f\u00fcr die Zwischenablage
+  // (gleiches Muster wie buildAccountingEmailHtml in settlement.js): echte
+  // <table>s statt Klartext-Spalten, damit sie beim Einf\u00fcgen in Outlook/Word
+  // formatiert erscheinen. Inline-Styles, da Mail-Clients externes CSS beim
+  // Einf\u00fcgen verwerfen; alle Feldwerte HTML-escaped (escapeHtml aus settlement.js).
+  const buildInvoiceHtml = (proj, laborLines, costLines, total, summaryMode) => {
+    const fmt2 = n => n.toFixed(2);
+    const td = 'border:1px solid #94a3b8;padding:4px 10px;font-size:13px;';
+    const tdNum = td + 'text-align:right;font-variant-numeric:tabular-nums;';
+    const th = td + 'background:#e2e8f0;font-weight:600;text-align:left;';
+    const cc = resolveCountryCode(proj.country);
+    let html = '<p>Guten Tag,</p>' + `<p>anbei die Kostenaufstellung f&uuml;r Projekt &quot;${escapeHtml(proj.name)}&quot;.</p>`;
+    const detailRows = [['Projekt', proj.name], ['Projektnummer', proj.projectNumber || '-'], proj.address ? ['Adresse', proj.address] : null, cc && cc !== '/' ? ['Land', cc] : null, proj.projType ? ['Typ', proj.projType] : null, proj.size != null && proj.size !== '' ? ['Gr\u00f6\u00dfe', proj.size] : null, proj.ibnWeek ? ['IBN-Woche', proj.ibnWeek] : null, ['Datum', new Date().toLocaleDateString('de-DE')]].filter(Boolean);
+    html += '<table style="border-collapse:collapse;border:1px solid #94a3b8;margin-bottom:12px;">' + detailRows.map(([k, v]) => `<tr><td style="${th}">${escapeHtml(k)}</td><td style="${td}">${escapeHtml(v)}</td></tr>`).join('') + '</table>';
+    if (proj.notes) html += `<p><strong>Notizen:</strong> ${escapeHtml(proj.notes)}</p>`;
+    const includedLabor = laborLines.filter(l => l.included);
+    if (includedLabor.length > 0) {
+      let laborTotal = 0;
+      includedLabor.forEach(l => {
+        laborTotal += l.cost;
+      });
+      html += '<h4 style="margin:14px 0 4px;">Personalkosten</h4>';
+      if (summaryMode) {
+        html += `<p>Summe: <strong>${fmt2(laborTotal)} EUR</strong></p>`;
+      } else {
+        const rowsHtml = includedLabor.map(l => `<tr><td style="${td}">${escapeHtml(l.emp?.name || 'Unbekannt')}</td>` + `<td style="${tdNum}">${l.hours}</td>` + `<td style="${tdNum}">${fmt2(l.rate)}</td>` + `<td style="${tdNum}">${fmt2(l.cost)}</td></tr>`).join('');
+        html += '<table style="border-collapse:collapse;border:1px solid #94a3b8;">' + `<thead><tr><th style="${th}">Mitarbeiter</th><th style="${th}">Std.</th><th style="${th}">EUR/h</th><th style="${th}">Betrag (EUR)</th></tr></thead>` + `<tbody>${rowsHtml}</tbody>` + `<tfoot><tr><td style="${th}" colspan="3">Summe</td><td style="${th}text-align:right;">${fmt2(laborTotal)}</td></tr></tfoot>` + '</table>';
+      }
+    }
+    const includedCosts = costLines.filter(c => c.included);
+    if (includedCosts.length > 0) {
+      let costsTotal = 0;
+      const sumsByType = {};
+      const detailRowsHtml = [];
+      includedCosts.forEach(({
+        ci,
+        emp
+      }) => {
+        (ci.lines || []).forEach(l => {
+          const cfg = COST_LINE_TYPES[l.type] || COST_LINE_TYPES.other;
+          const amt = l.type === 'hours' ? (l.hours || 0) * (l.hourlyRate || 0) : l.amount || 0;
+          costsTotal += amt;
+          sumsByType[l.type] = (sumsByType[l.type] || 0) + amt;
+          const desc = [ci.description, l.comment].filter(Boolean).join(' - ');
+          detailRowsHtml.push(`<tr><td style="${td}">${escapeHtml(emp?.name || 'Unbekannt')}</td>` + `<td style="${td}">${escapeHtml(cfg.invoiceLabel)}</td>` + `<td style="${td}">${escapeHtml(desc || '-')}</td>` + `<td style="${tdNum}">${fmt2(amt)}</td></tr>`);
+        });
+      });
+      html += '<h4 style="margin:14px 0 4px;">Zusatzkosten</h4>' + '<table style="border-collapse:collapse;border:1px solid #94a3b8;">';
+      if (summaryMode) {
+        const sumRowsHtml = COST_LINE_TYPE_ORDER.filter(type => sumsByType[type] > 0).map(type => `<tr><td style="${td}">${escapeHtml(COST_LINE_TYPES[type].invoiceLabel)}</td>` + `<td style="${tdNum}">${fmt2(sumsByType[type])}</td></tr>`).join('');
+        html += `<thead><tr><th style="${th}">Kategorie</th><th style="${th}">Betrag (EUR)</th></tr></thead>` + `<tbody>${sumRowsHtml}</tbody>` + `<tfoot><tr><td style="${th}">Summe</td><td style="${th}text-align:right;">${fmt2(costsTotal)}</td></tr></tfoot>`;
+      } else {
+        html += `<thead><tr><th style="${th}">Mitarbeiter</th><th style="${th}">Kategorie</th><th style="${th}">Beschreibung</th><th style="${th}">Betrag (EUR)</th></tr></thead>` + `<tbody>${detailRowsHtml.join('')}</tbody>` + `<tfoot><tr><td style="${th}" colspan="3">Summe</td><td style="${th}text-align:right;">${fmt2(costsTotal)}</td></tr></tfoot>`;
+      }
+      html += '</table>';
+    }
+    html += `<p style="margin-top:14px;"><strong>GESAMT NETTO: ${fmt2(total)} EUR</strong></p>` + '<p>Mit freundlichen Gr&uuml;&szlig;en</p>';
+    return {
+      html
+    };
+  };
+
+  // Kopiert die Kosten\u00fcbersicht als echte Tabelle (text/html) plus
+  // Klartext-Fallback in die Zwischenablage \u2013 gleiches Muster wie
+  // copySelection im Reisekosten-Sende-Dialog (travel-costs.jsx).
+  const copyInvoiceTable = () => {
+    const proj = projectById.get(selectedProjectDetails);
+    if (!proj) return;
+    const {
+      laborLines,
+      costLines,
+      total
+    } = buildInvoiceData(proj, invoiceSelection);
+    const summaryMode = invoiceEmailMode === 'summary';
+    const {
+      subject,
+      body
+    } = buildInvoiceEmailText(proj, laborLines, costLines, total, summaryMode);
+    const {
+      html
+    } = buildInvoiceHtml(proj, laborLines, costLines, total, summaryMode);
+    const text = `${subject}\n\n${body}`;
+    const done = () => showToast(t('invoice.copiedTable'), {
+      type: 'success',
+      duration: 3000
+    });
+    const fail = () => showToast(t('invoice.copyFailed'), {
+      type: 'error'
+    });
+    if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+      navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], {
+          type: 'text/html'
+        }),
+        'text/plain': new Blob([text], {
+          type: 'text/plain'
+        })
+      })]).then(done).catch(() => {
+        navigator.clipboard?.writeText?.(text).then(done).catch(fail);
+      });
+    } else if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+    } else {
+      fail();
+    }
+  };
+  const handleInvoiceSendEmail = () => {
+    const proj = projectById.get(selectedProjectDetails);
+    if (!proj) return;
+    const {
+      laborLines,
+      costLines,
+      total
+    } = buildInvoiceData(proj, invoiceSelection);
+    const {
+      subject,
+      body
+    } = buildInvoiceEmailText(proj, laborLines, costLines, total, invoiceEmailMode === 'summary');
+    window.location.href = `mailto:${encodeURIComponent(invoiceRecipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     markInvoiceExported(proj, 'per E-Mail versendet');
   };
 
@@ -3331,7 +3450,14 @@ function App() {
     }, t('invoice.modeDetailed'))), /*#__PURE__*/React.createElement("span", {
       className: "text-xs text-slate-400"
     }, invoiceEmailMode === 'summary' ? t('invoice.modeSummaryHint') : t('invoice.modeDetailedHint'))), /*#__PURE__*/React.createElement("div", {
-      className: "p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center"
+      className: "p-6 bg-slate-50 border-t border-slate-100 space-y-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800"
+    }, /*#__PURE__*/React.createElement(IconCopy, {
+      size: 14,
+      className: "shrink-0 mt-0.5"
+    }), /*#__PURE__*/React.createElement("span", null, t('invoice.copyPasteHint'))), /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-center"
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
       className: "text-sm text-slate-500"
     }, t('invoice.totalNet')), /*#__PURE__*/React.createElement("p", {
@@ -3341,7 +3467,13 @@ function App() {
     }, /*#__PURE__*/React.createElement("button", {
       onClick: () => setIsInvoiceModalOpen(false),
       className: "px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 font-medium"
-    }, t('btn.cancel')), invoiceRecipient && /*#__PURE__*/React.createElement("button", {
+    }, t('btn.cancel')), /*#__PURE__*/React.createElement("button", {
+      onClick: copyInvoiceTable,
+      title: t('invoice.copyHint'),
+      className: "px-4 py-2 text-sm font-medium bg-amber-100 border-2 border-amber-400 rounded-md hover:bg-amber-200 text-amber-900 flex items-center gap-2 shadow-sm"
+    }, /*#__PURE__*/React.createElement(IconCopy, {
+      size: 14
+    }), " ", t('invoice.copyBtn')), invoiceRecipient && /*#__PURE__*/React.createElement("button", {
       onClick: handleInvoiceSendEmail,
       className: "px-4 py-2 text-sm text-white bg-gea-500 rounded-md hover:bg-gea-600 flex items-center gap-2 font-medium"
     }, "\u2709 ", t('invoice.sendEmail')), /*#__PURE__*/React.createElement("button", {
@@ -3349,7 +3481,7 @@ function App() {
       className: "px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 flex items-center gap-2 font-medium"
     }, /*#__PURE__*/React.createElement(IconFileText, {
       size: 16
-    }), " ", t('invoice.csvExport'))))));
+    }), " ", t('invoice.csvExport')))))));
   };
 
   // --- FILE SYSTEM SYNC HANDLERS ---

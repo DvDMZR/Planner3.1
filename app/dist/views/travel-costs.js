@@ -688,7 +688,14 @@ const TravelCostsView = ({
       className: "text-slate-900 font-medium tabular-nums shrink-0"
     }, fmt2(settlementAmount(ci)), " \u20AC"));
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3"
+    className: "p-4 bg-slate-50 border-t border-slate-100 space-y-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800"
+  }, /*#__PURE__*/React.createElement(IconCopy, {
+    size: 14,
+    className: "shrink-0 mt-0.5"
+  }), /*#__PURE__*/React.createElement("span", null, t('travel.copyPasteHint'))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-500"
   }, t('travel.selectedSum').replace('{count}', String(sendSelected.length))), /*#__PURE__*/React.createElement("p", {
@@ -702,7 +709,7 @@ const TravelCostsView = ({
     onClick: copySelection,
     disabled: sendSelected.length === 0,
     title: t('travel.copyHint'),
-    className: "px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-md hover:bg-gea-50 hover:border-gea-400 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+    className: "px-4 py-2 text-sm font-medium bg-amber-100 border-2 border-amber-400 rounded-md hover:bg-amber-200 text-amber-900 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
   }, /*#__PURE__*/React.createElement(IconCopy, {
     size: 14
   }), " ", t('travel.copyBtn')), /*#__PURE__*/React.createElement("button", {
@@ -711,7 +718,7 @@ const TravelCostsView = ({
     className: "px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
   }, /*#__PURE__*/React.createElement(IconExternalLink, {
     size: 14
-  }), " ", t('travel.openMailBtn')))))), isImportOpen && /*#__PURE__*/React.createElement(ExpenseImportModal, {
+  }), " ", t('travel.openMailBtn'))))))), isImportOpen && /*#__PURE__*/React.createElement(ExpenseImportModal, {
     proj: null,
     projects: projects,
     teamKst: teamKst,

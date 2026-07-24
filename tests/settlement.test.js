@@ -137,12 +137,12 @@ test('buildAccountingEmail: Tabellenform mit Pflichtdaten je Posten + Gesamtsumm
     assert.equal(mail.total, 150);
     assert.match(mail.subject, /2 Posten/);
     assert.match(mail.subject, /150\.00 EUR/);
-    // Tabellenkopf mit allen Pflichtspalten
-    assert.match(mail.body, /Mitarbeiter\s*\| Abrechnungsschluessel\s*\| Betrag \(EUR\)\s*\| Gutschrift auf KST\s*\| Umbuchung auf/);
-    // Posten 1: Projekt-KST als Ziel (kein eigenes Gegenkonto gesetzt)
-    assert.match(mail.body, /Anna Schmidt\s*\|\s*943829\s*\|\s*100\.50\s*\|\s*4711\s*\|\s*77001/);
-    // Posten 2: eigenes Gegenkonto, fehlender reportKey → '-'
-    assert.match(mail.body, /Bernd Meier\s*\|\s*-\s*\|\s*49\.50\s*\|\s*4712\s*\|\s*99001/);
+    // Tabellenkopf mit allen Pflichtspalten (inkl. Projekt + KW)
+    assert.match(mail.body, /Mitarbeiter\s*\| Projekt\s*\| KW\s*\| Abrechnungsschluessel\s*\| Betrag \(EUR\)\s*\| Gutschrift auf KST\s*\| Umbuchung auf/);
+    // Posten 1: Projekt-KST als Ziel (kein eigenes Gegenkonto gesetzt); Projekt "Anlage Nord", kein dateFrom/week → KW '-'
+    assert.match(mail.body, /Anna Schmidt\s*\|\s*Anlage Nord\s*\|\s*-\s*\|\s*943829\s*\|\s*100\.50\s*\|\s*4711\s*\|\s*77001/);
+    // Posten 2: ohne Projekt → "Intern (KST)"; eigenes Gegenkonto, fehlender reportKey → '-'
+    assert.match(mail.body, /Bernd Meier\s*\|\s*Intern \(KST\)\s*\|\s*-\s*\|\s*-\s*\|\s*49\.50\s*\|\s*4712\s*\|\s*99001/);
     assert.match(mail.body, /GESAMTSUMME: 150\.00 EUR/);
     // Spalten sind auf gleiche Breite aufgefüllt (Tabellen-Layout)
     const rows = mail.body.split('\n').filter(l => l.includes('|') && !l.includes('---'));
@@ -153,7 +153,20 @@ test('buildAccountingEmail: Tabellenform mit Pflichtdaten je Posten + Gesamtsumm
 test('buildAccountingEmail: fehlende KST/Ziel-Stelle → "-"', () => {
     const items = [ci({ empId: 'emp-unbekannt', projectId: 'proj-2' })];
     const mail = buildAccountingEmail(items, employees, projects, teamKst);
-    assert.match(mail.body, /Unbekannt\s*\|\s*-\s*\|\s*100\.00\s*\|\s*-\s*\|\s*-/);
+    // "Anlage Sued" (proj-2) hat kein kst → Gutschrift/Umbuchung beide '-'
+    assert.match(mail.body, /Unbekannt\s*\|\s*Anlage Sued\s*\|\s*-\s*\|\s*-\s*\|\s*100\.00\s*\|\s*-\s*\|\s*-/);
+});
+
+test('buildAccountingEmail: KW-Spalte aus dateFrom/dateTo bzw. week', () => {
+    const items = [
+        ci({ id: 'c1', dateFrom: '2026-03-02' }),                          // einzelne KW
+        ci({ id: 'c2', dateFrom: '2026-03-02', dateTo: '2026-03-16' }),    // KW-Bereich
+        ci({ id: 'c3', week: '2026-W20' }),                                // ohne dateFrom, nur week
+    ];
+    const mail = buildAccountingEmail(items, employees, projects, teamKst);
+    assert.match(mail.body, /KW 10\/26\s*\|/);
+    assert.match(mail.body, /KW 10\/26-KW 12\/26\s*\|/);
+    assert.match(mail.body, /KW 20\/26\s*\|/);
 });
 
 // ── moveCostLine (nachträglicher Split je Einzelposten) ─────────────────────
@@ -281,7 +294,7 @@ test('getSettlementStatus: booked_other_kst ist gültiger expliziter Status', ()
 test('buildAccountingEmailHtml: echte Tabelle mit Escaping und Summen', () => {
     const { buildAccountingEmailHtml } = app;
     const items = [
-        ci({ id: 'c1', empId: 'emp-1', reportKey: '943829',
+        ci({ id: 'c1', empId: 'emp-1', reportKey: '943829', dateFrom: '2026-03-02',
              lines: [{ id: 'l', type: 'travel', amount: 100.5 }] }),
     ];
     const emps = [{ id: 'emp-1', name: 'Anna <b>Schmidt</b> & Co', category: 'AS' }];
@@ -297,4 +310,9 @@ test('buildAccountingEmailHtml: echte Tabelle mit Escaping und Summen', () => {
     assert.match(res.html, /100\.50/);
     assert.match(res.html, /GESAMTSUMME/);
     assert.match(res.html, /77001/); // Projekt-KST als Umbuchungsziel
+    // Neue Spalten: Projektname + Kalenderwoche
+    assert.match(res.html, />Anlage Nord</);
+    assert.match(res.html, />KW 10\/26</);
+    assert.match(res.html, /<th[^>]*>Projekt<\/th>/);
+    assert.match(res.html, /<th[^>]*>KW<\/th>/);
 });

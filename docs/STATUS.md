@@ -5,7 +5,7 @@ bewusst zurückgestellt und warum. Ersetzt die vormals getrennten Dateien
 `CODE_REVIEW.md`, `docs/SECURITY.md` und `docs/SYNC-OPTIMIERUNG.md` (deren Inhalt
 ist hier eingearbeitet und aktualisiert).
 
-Stand: 2026-07-16, App-Version v0.94.
+Stand: 2026-07-18, App-Version v0.95.
 
 ---
 
@@ -208,6 +208,21 @@ sehr hoher Edit-Frequenz zuerst Pre-Save-Freshness-Check nachrüsten, danach
 - **Status-Umfang geweitet:** `projectsByCategory` (`app.jsx`) zeigt jetzt
   Projekte in jedem Status (vorher hart auf `active`/`planned` beschränkt) —
   macht den neuen Status-Filter erst sinnvoll nutzbar.
+
+### Umgesetzt (2026-07-18, v0.95)
+- **Reisekosten-Sende-Dialog:** "Tabelle kopieren"-Button optisch hervorgehoben
+  (Amber-Akzent statt neutralem Sekundär-Button) + immer sichtbarer Hinweis
+  (nicht nur Tooltip), dass die kopierte Tabelle per Strg+V/⌘V direkt in die
+  E-Mail eingefügt werden kann. Die Tabelle (`buildAccountingEmail`/
+  `buildAccountingEmailHtml`, `app/settlement.js`) hat zwei neue Spalten:
+  Projektname (Fallback „Intern (KST)") und Kalenderwoche (`kwLabelFor`,
+  aus `dateFrom`/`dateTo` bzw. `week`, gleiche Logik wie die Bildschirm-Ansicht).
+- **Rechnungsdialog (Projektdetails):** neue "Tabelle kopieren"-Funktion nach
+  demselben Muster (`buildInvoiceHtml`/`copyInvoiceTable`, `app.jsx`) —
+  Personal- und Zusatzkosten als echte HTML-Tabellen in die Zwischenablage,
+  respektiert die bestehende Kurzfassung/Detailliert-Einstellung. Die
+  Klartext-Mailbody-Logik wurde dafür aus `handleInvoiceSendEmail` in
+  `buildInvoiceEmailText` extrahiert (von Mailto-Versand und Kopieren geteilt).
 
 ### Ideen-Backlog aus dem Funktionskatalog (2026-07-12, noch nicht beauftragt)
 - Jahres-/Management-Report über ALLE Projekte (inkl. abgeschlossener),

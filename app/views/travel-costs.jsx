@@ -629,25 +629,31 @@ const TravelCostsView = ({ s, h }) => {
                                     })}
                                 </div>
                             </div>
-                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3">
-                                <div>
-                                    <p className="text-xs text-slate-500">{t('travel.selectedSum').replace('{count}', String(sendSelected.length))}</p>
-                                    <p className="text-lg text-gea-600 font-semibold tabular-nums">{fmt2(sendSelectedTotal)} €</p>
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 space-y-3">
+                                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                                    <IconCopy size={14} className="shrink-0 mt-0.5"/>
+                                    <span>{t('travel.copyPasteHint')}</span>
                                 </div>
-                                <div className="ml-auto flex gap-2">
-                                    <button onClick={() => setIsSendOpen(false)}
-                                        className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 font-medium">
-                                        {t('btn.cancel')}
-                                    </button>
-                                    <button onClick={copySelection} disabled={sendSelected.length === 0}
-                                        title={t('travel.copyHint')}
-                                        className="px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-md hover:bg-gea-50 hover:border-gea-400 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
-                                        <IconCopy size={14}/> {t('travel.copyBtn')}
-                                    </button>
-                                    <button onClick={sendSelection} disabled={sendSelected.length === 0}
-                                        className="px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
-                                        <IconExternalLink size={14}/> {t('travel.openMailBtn')}
-                                    </button>
+                                <div className="flex items-center gap-3">
+                                    <div>
+                                        <p className="text-xs text-slate-500">{t('travel.selectedSum').replace('{count}', String(sendSelected.length))}</p>
+                                        <p className="text-lg text-gea-600 font-semibold tabular-nums">{fmt2(sendSelectedTotal)} €</p>
+                                    </div>
+                                    <div className="ml-auto flex gap-2">
+                                        <button onClick={() => setIsSendOpen(false)}
+                                            className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 font-medium">
+                                            {t('btn.cancel')}
+                                        </button>
+                                        <button onClick={copySelection} disabled={sendSelected.length === 0}
+                                            title={t('travel.copyHint')}
+                                            className="px-4 py-2 text-sm font-medium bg-amber-100 border-2 border-amber-400 rounded-md hover:bg-amber-200 text-amber-900 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+                                            <IconCopy size={14}/> {t('travel.copyBtn')}
+                                        </button>
+                                        <button onClick={sendSelection} disabled={sendSelected.length === 0}
+                                            className="px-4 py-2 text-sm text-white bg-gea-600 rounded-md hover:bg-gea-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                                            <IconExternalLink size={14}/> {t('travel.openMailBtn')}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

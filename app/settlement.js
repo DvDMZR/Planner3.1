@@ -192,13 +192,27 @@ const moveCostLine = (costItems, sourceItemId, lineId, opts = {}) => {
 // Breite aufgefüllt, damit die Übersicht in Monospace-Darstellung als
 // Tabelle lesbar ist. Bewusst ASCII-sicher formuliert (wie die bestehende
 // Rechnungs-E-Mail), da mailto-Clients Umlaute unterschiedlich behandeln.
+// Kalenderwochen-Label für die Buchhaltungs-Tabelle: dateFrom/dateTo ergeben
+// bei unterschiedlicher KW einen Bereich, sonst greift das gepflegte `week`.
+// Gleiche Logik wie travel-costs.jsx `kwLabel` – Trennzeichen parametrisiert,
+// da die Klartext-Mail ASCII-sicher bleiben muss (Bindestrich), während die
+// HTML-Tabelle den optisch passenden Halbgeviertstrich wie im UI nutzt.
+const kwLabelFor = (ci, sep) => {
+    if (ci.dateFrom) {
+        const kwF = formatKW(getWeekString(new Date(ci.dateFrom)));
+        const kwT = ci.dateTo ? formatKW(getWeekString(new Date(ci.dateTo))) : kwF;
+        return kwF === kwT ? kwF : `${kwF}${sep}${kwT}`;
+    }
+    return ci.week ? formatKW(ci.week) : '-';
+};
+
 const buildAccountingEmail = (items, employees, projects, teamKst) => {
     const empById = new Map((employees || []).map(e => [e.id, e]));
     const projById = new Map((projects || []).map(p => [p.id, p]));
     const fmt2 = (n) => n.toFixed(2);
 
     let total = 0;
-    const header = ['Mitarbeiter', 'Abrechnungsschluessel', 'Betrag (EUR)', 'Gutschrift auf KST', 'Umbuchung auf'];
+    const header = ['Mitarbeiter', 'Projekt', 'KW', 'Abrechnungsschluessel', 'Betrag (EUR)', 'Gutschrift auf KST', 'Umbuchung auf'];
     const tableRows = (items || []).map(ci => {
         const emp = empById.get(ci.empId);
         const team = emp?.category || 'Other';
@@ -207,7 +221,7 @@ const buildAccountingEmail = (items, employees, projects, teamKst) => {
         const target = ci.targetAccount || proj?.kst || '-';
         const amount = settlementAmount(ci);
         total += amount;
-        return [emp?.name || 'Unbekannt', ci.reportKey || '-', fmt2(amount), kst, target];
+        return [emp?.name || 'Unbekannt', proj?.name || 'Intern (KST)', kwLabelFor(ci, '-'), ci.reportKey || '-', fmt2(amount), kst, target];
     });
     total = Math.round(total * 100) / 100;
 
@@ -264,6 +278,8 @@ const buildAccountingEmailHtml = (items, employees, projects, teamKst) => {
         const amount = settlementAmount(ci);
         total += amount;
         return `<tr><td style="${td}">${escapeHtml(emp?.name || 'Unbekannt')}</td>`
+            + `<td style="${td}">${escapeHtml(proj?.name || 'Intern (KST)')}</td>`
+            + `<td style="${td}">${escapeHtml(kwLabelFor(ci, '–'))}</td>`
             + `<td style="${td}">${escapeHtml(ci.reportKey || '-')}</td>`
             + `<td style="${tdNum}">${fmt2(amount)}</td>`
             + `<td style="${td}">${escapeHtml(kst)}</td>`
@@ -277,6 +293,8 @@ const buildAccountingEmailHtml = (items, employees, projects, teamKst) => {
         + '<table style="border-collapse:collapse;border:1px solid #94a3b8;">'
         + '<thead><tr>'
         + `<th style="${th}">Mitarbeiter</th>`
+        + `<th style="${th}">Projekt</th>`
+        + `<th style="${th}">KW</th>`
         + `<th style="${th}">Abrechnungsschl&uuml;ssel</th>`
         + `<th style="${th}">Betrag (EUR)</th>`
         + `<th style="${th}">Gutschrift auf KST</th>`
@@ -284,7 +302,7 @@ const buildAccountingEmailHtml = (items, employees, projects, teamKst) => {
         + '</tr></thead>'
         + `<tbody>${rowsHtml}</tbody>`
         + '<tfoot><tr>'
-        + `<td style="${th}" colspan="2">GESAMTSUMME</td>`
+        + `<td style="${th}" colspan="4">GESAMTSUMME</td>`
         + `<td style="${th}text-align:right;">${fmt2(total)}</td>`
         + `<td style="${th}" colspan="2"></td>`
         + '</tr></tfoot></table>'
